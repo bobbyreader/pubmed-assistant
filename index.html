@@ -484,6 +484,8 @@
 
         <div class="tip">
             💡 提示：支持中文或英文关键词！输入中文会自动翻译后搜索。点击 ⭐ 收藏感兴趣的文献
+            <br>
+            <small style="color: rgba(255,255,255,0.8);">⚙️ 使用前请先配置 Worker 代理地址（在代码中修改 WORKER_URL）</small>
         </div>
 
         <div class="tab-container">
@@ -569,6 +571,11 @@
     </div>
 
     <script>
+        // ⚙️ 配置你的 Cloudflare Worker 代理地址
+        // 创建完 Worker 后，把地址填在这里，例如：
+        // const WORKER_URL = 'https://pubmed-proxy.你的用户名.workers.dev';
+        const WORKER_URL = 'pubmed-proxy.wei-bobby.workers.dev'; // 👈 在这里填写你的 Worker 地址
+        
         // 收藏功能 - 使用持久化存储
         let favorites = {};
 
@@ -832,12 +839,45 @@
         // 翻译中文到英文
         async function translateToEnglish(text) {
             try {
-                const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl=en&dt=t&q=${encodeURIComponent(text)}`);
+                const apiUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl=en&dt=t&q=${encodeURIComponent(text)}`;
+                
+                let response;
+                if (WORKER_URL) {
+                    response = await fetch(`${WORKER_URL}?url=${encodeURIComponent(apiUrl)}`);
+                } else {
+                    response = await fetch(apiUrl);
+                }
+                
                 const data = await response.json();
                 return data[0][0][0];
             } catch (error) {
                 console.error('Translation error:', error);
-                return text; // 翻译失败则使用原文
+                return text;
+            }
+        }
+
+        // 通用 fetch 函数，使用 Worker 代理
+        async function fetchWithProxy(url) {
+            if (WORKER_URL) {
+                return await fetch(`${WORKER_URL}?url=${encodeURIComponent(url)}`);
+            } else {
+                // 如果没有配置 Worker，尝试多个代理
+                const proxies = [
+                    '',
+                    'https://api.allorigins.win/raw?url=',
+                    'https://corsproxy.io/?'
+                ];
+                
+                for (const proxy of proxies) {
+                    try {
+                        const proxyUrl = proxy ? proxy + encodeURIComponent(url) : url;
+                        const response = await fetch(proxyUrl);
+                        if (response.ok) return response;
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                throw new Error('所有代理都失败了');
             }
         }
 
@@ -879,30 +919,10 @@
                 // 获取显示数量限制
                 const limit = document.getElementById('resultLimit').value || '10';
                 
-                // 使用多个代理尝试
+                // 构建搜索 URL
                 const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(finalQuery)}&retmax=${limit}&retmode=json`;
                 
-                let searchResponse = null;
-                const proxies = [
-                    '', // 直接访问
-                    'https://api.allorigins.win/raw?url=',
-                    'https://corsproxy.io/?'
-                ];
-                
-                for (const proxy of proxies) {
-                    try {
-                        const url = proxy ? proxy + encodeURIComponent(searchUrl) : searchUrl;
-                        searchResponse = await fetch(url, {
-                            method: 'GET',
-                            headers: {
-                                'Accept': 'application/json'
-                            }
-                        });
-                        if (searchResponse.ok) break;
-                    } catch (e) {
-                        continue;
-                    }
-                }
+                const searchResponse = await fetchWithProxy(searchUrl);
                 
                 if (!searchResponse.ok) {
                     throw new Error('搜索请求失败');
@@ -924,22 +944,7 @@
                 
                 // 获取文章详细信息
                 const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${idList.join(',')}&retmode=json`;
-                
-                let fetchResponse = null;
-                for (const proxy of proxies) {
-                    try {
-                        const url = proxy ? proxy + encodeURIComponent(fetchUrl) : fetchUrl;
-                        fetchResponse = await fetch(url, {
-                            method: 'GET',
-                            headers: {
-                                'Accept': 'application/json'
-                            }
-                        });
-                        if (fetchResponse.ok) break;
-                    } catch (e) {
-                        continue;
-                    }
-                }
+                const fetchResponse = await fetchWithProxy(fetchUrl);
                 
                 if (!fetchResponse.ok) {
                     throw new Error('获取详情失败');
@@ -987,7 +992,8 @@
                 
             } catch (error) {
                 console.error('Error:', error);
-                errorDiv.innerHTML = `<div class="error">❌ 搜索出错：${error.message}<br><br>可能的原因：<br>1. 网络环境限制（建议使用VPN）<br>2. PubMed 服务暂时不可用<br><br>💡 建议：<br>• 尝试使用科学上网工具<br>• 稍后再试<br>• 或直接访问 <a href="https://pubmed.ncbi.nlm.nih.gov" target="_blank" style="color: white; text-decoration: underline;">PubMed 官网</a></div>`;
+                const workerTip = WORKER_URL ? '' : '<br>💡 建议：配置 Cloudflare Worker 代理以获得更稳定的访问';
+                errorDiv.innerHTML = `<div class="error">❌ 搜索出错：${error.message}<br><br>可能的原因：<br>1. 网络环境限制<br>2. PubMed 服务暂时不可用${workerTip}<br><br>📖 或直接访问 <a href="https://pubmed.ncbi.nlm.nih.gov" target="_blank" style="color: white; text-decoration: underline;">PubMed 官网</a></div>`;
                 errorDiv.style.display = 'block';
             } finally {
                 loadingDiv.style.display = 'none';
@@ -1014,30 +1020,9 @@
             summaryDiv.classList.add('show');
             
             try {
-                // 获取文献摘要 - 使用多个代理尝试
+                // 获取文献摘要
                 const abstractUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&retmode=xml`;
-                
-                const proxies = [
-                    '',
-                    'https://api.allorigins.win/raw?url=',
-                    'https://corsproxy.io/?'
-                ];
-                
-                let response = null;
-                for (const proxy of proxies) {
-                    try {
-                        const url = proxy ? proxy + encodeURIComponent(abstractUrl) : abstractUrl;
-                        response = await fetch(url);
-                        if (response.ok) break;
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                
-                if (!response || !response.ok) {
-                    throw new Error('无法获取摘要');
-                }
-                
+                const response = await fetchWithProxy(abstractUrl);
                 const xmlText = await response.text();
                 
                 // 解析 XML 获取摘要
