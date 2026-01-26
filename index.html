@@ -539,12 +539,12 @@
             </div>
 
             <div class="search-box">
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    class="search-input" 
+                <input
+                    type="text"
+                    id="searchInput"
+                    class="search-input"
                     placeholder="输入中文或英文关键词，例如：糖尿病、COVID-19、癌症治疗..."
-                    onkeypress="if(event.key==='Enter') searchPubMed()"
+                    onkeypress="if(event && event.key==='Enter') searchPubMed()"
                 >
                 <button class="search-btn" onclick="searchPubMed()">🔍 搜索文献</button>
                 <div id="translationInfo" style="margin-top: 10px; color: #667eea; font-size: 0.9em; display: none;"></div>
@@ -696,7 +696,7 @@
                     <a href="https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/" target="_blank" class="article-link">
                         查看 PubMed 原文 →
                     </a>
-                    <button class="summary-btn" onclick="generateSummary('${article.pmid}', '${article.title.replace(/'/g, "\\'")}', '${article.authors.replace(/'/g, "\\'")}', '${article.journal.replace(/'/g, "\\'")}')">
+                    <button class="summary-btn" onclick="generateSummary('${article.pmid}', '${article.title.replace(/'/g, "\\'")}', '${article.authors.replace(/'/g, "\\'")}', '${article.journal.replace(/'/g, "\\'")}', this)">
                         📄 查看摘要
                     </button>
                     <button class="delete-btn" onclick="deleteFavorite('${article.pmid}')">
@@ -977,7 +977,7 @@
                             <a href="https://pubmed.ncbi.nlm.nih.gov/${pmid}/" target="_blank" class="article-link">
                                 查看 PubMed 原文 →
                             </a>
-                            <button class="summary-btn" onclick="generateSummary('${pmid}', '${article.title.replace(/'/g, "\\'")}', '${authors.replace(/'/g, "\\'")}', '${journal.replace(/'/g, "\\'")}')">
+                            <button class="summary-btn" onclick="generateSummary('${pmid}', '${article.title.replace(/'/g, "\\'")}', '${authors.replace(/'/g, "\\'")}', '${journal.replace(/'/g, "\\'")}', this)">
                                 📄 查看摘要
                             </button>
                             <button class="favorite-btn ${favorites[pmid] ? 'favorited' : ''}" data-pmid="${pmid}" onclick="toggleFavorite('${pmid}', '${article.title.replace(/'/g, "\\'")}', '${authors.replace(/'/g, "\\'")}', '${journal.replace(/'/g, "\\'")}', '${pubdate}')">
@@ -1002,9 +1002,9 @@
         }
 
         // AI 总结功能 - 获取并展示文献摘要
-        async function generateSummary(pmid, title, authors, journal) {
+        async function generateSummary(pmid, title, authors, journal, btnElement) {
             const summaryDiv = document.getElementById(`summary-${pmid}`);
-            const btn = event.target;
+            const btn = btnElement || event.target;
             
             // 如果已经有总结，切换显示/隐藏
             if (summaryDiv.classList.contains('show')) {
