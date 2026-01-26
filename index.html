@@ -574,7 +574,7 @@
         // ⚙️ 配置你的 Cloudflare Worker 代理地址
         // 创建完 Worker 后，把地址填在这里，例如：
         // const WORKER_URL = 'https://pubmed-proxy.你的用户名.workers.dev';
-        const WORKER_URL = 'proxy.leoyang.dpdns.org'; // 👈 在这里填写你的 Worker 地址
+        const WORKER_URL = 'https://proxy.leoyang.dpdns.org'; // 👈 在这里填写你的 Worker 地址
         
         // 收藏功能 - 使用持久化存储
         let favorites = {};
@@ -859,7 +859,24 @@
         // 通用 fetch 函数，使用 Worker 代理
         async function fetchWithProxy(url) {
             if (WORKER_URL) {
-                return await fetch(`${WORKER_URL}?url=${encodeURIComponent(url)}`);
+                const proxyUrl = `${WORKER_URL}?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
+
+                // 检查响应是否有效
+                const text = await response.text();
+                // 如果返回的是 HTML（错误页面），抛出错误
+                if (text.trim().startsWith('<') || text.trim().startsWith('<!')) {
+                    throw new Error('代理返回了错误页面');
+                }
+
+                // 返回一个模拟的 Response 对象
+                return {
+                    ok: response.ok,
+                    status: response.status,
+                    statusText: response.statusText,
+                    json: async () => JSON.parse(text),
+                    text: async () => text
+                };
             } else {
                 // 如果没有配置 Worker，尝试多个代理
                 const proxies = [
@@ -867,7 +884,7 @@
                     'https://api.allorigins.win/raw?url=',
                     'https://corsproxy.io/?'
                 ];
-                
+
                 for (const proxy of proxies) {
                     try {
                         const proxyUrl = proxy ? proxy + encodeURIComponent(url) : url;
