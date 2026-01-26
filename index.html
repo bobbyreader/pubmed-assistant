@@ -582,9 +582,9 @@
         // 页面加载时读取收藏
         async function loadFavorites() {
             try {
-                const result = await window.storage.get('pubmed-favorites');
-                if (result && result.value) {
-                    favorites = JSON.parse(result.value);
+                const saved = localStorage.getItem('pubmed-favorites');
+                if (saved) {
+                    favorites = JSON.parse(saved);
                     updateFavoritesCount();
                 }
             } catch (error) {
@@ -596,7 +596,7 @@
         // 保存收藏到存储
         async function saveFavorites() {
             try {
-                await window.storage.set('pubmed-favorites', JSON.stringify(favorites));
+                localStorage.setItem('pubmed-favorites', JSON.stringify(favorites));
                 updateFavoritesCount();
             } catch (error) {
                 console.error('Save favorites error:', error);
