@@ -571,10 +571,13 @@
     </div>
 
     <script>
-        // ⚙️ 配置你的 Cloudflare Worker 代理地址
-        // 创建完 Worker 后，把地址填在这里，例如：
-        // const WORKER_URL = 'https://pubmed-proxy.你的用户名.workers.dev';
-        const WORKER_URL = 'https://proxy.leoyang.dpdns.org'; // 👈 在这里填写你的 Worker 地址
+        // ⚙️ 配置代理地址
+        // 在中国网络环境下，使用公开的 CORS 代理
+        // 可用的代理选项：
+        // 1. https://api.allorigins.win/raw?url=  - 在中国可用
+        // 2. https://corsproxy.io/?  - 可能在某些地区受限
+        // 3. 自己的 Cloudflare Worker
+        const WORKER_URL = ''; // 留空将自动尝试多个代理
         
         // 收藏功能 - 使用持久化存储
         let favorites = {};
@@ -880,9 +883,10 @@
             } else {
                 // 如果没有配置 Worker，尝试多个代理
                 const proxies = [
-                    '',
                     'https://api.allorigins.win/raw?url=',
-                    'https://corsproxy.io/?'
+                    'https://api.codetabs.com/v1/proxy?quest=',
+                    'https://corsproxy.io/?',
+                    ''  // 直接连接（可能在某些情况下工作）
                 ];
 
                 for (const proxy of proxies) {
