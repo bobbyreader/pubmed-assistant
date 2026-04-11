@@ -3,1173 +3,135 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PubMed 文献助手</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-        }
-        
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-        
-        .search-box {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            margin-bottom: 30px;
-        }
-        
-        .search-input {
-            width: 100%;
-            padding: 15px;
-            font-size: 16px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            transition: border 0.3s;
-        }
-        
-        .search-input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .search-btn {
-            width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            font-weight: bold;
-            color: white;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        
-        .search-btn:hover {
-            transform: translateY(-2px);
-        }
-        
-        .search-btn:active {
-            transform: translateY(0);
-        }
-        
-        .search-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .loading {
-            text-align: center;
-            color: white;
-            font-size: 18px;
-            margin: 20px 0;
-        }
-        
-        .results {
-            display: grid;
-            gap: 20px;
-        }
-        
-        .article {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        .article:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        }
-        
-        .article-title {
-            font-size: 1.3em;
-            color: #667eea;
-            margin-bottom: 10px;
-            font-weight: bold;
-            line-height: 1.4;
-        }
-        
-        .article-authors {
-            color: #666;
-            font-size: 0.95em;
-            margin-bottom: 10px;
-        }
-        
-        .article-journal {
-            color: #999;
-            font-size: 0.9em;
-            margin-bottom: 10px;
-            font-style: italic;
-        }
-        
-        .article-meta {
-            color: #999;
-            font-size: 0.85em;
-            margin-bottom: 15px;
-        }
-        
-        .article-link {
-            display: inline-block;
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 0.9em;
-            transition: background 0.3s;
-            margin-right: 10px;
-        }
-        
-        .article-link:hover {
-            background: #764ba2;
-        }
-
-        .summary-btn {
-            display: inline-block;
-            padding: 10px 20px;
-            background: #48bb78;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .summary-btn:hover {
-            background: #38a169;
-        }
-
-        .summary-btn:disabled {
-            background: #cbd5e0;
-            cursor: not-allowed;
-        }
-
-        .ai-summary {
-            margin-top: 15px;
-            padding: 15px;
-            background: #f7fafc;
-            border-left: 4px solid #48bb78;
-            border-radius: 8px;
-            display: none;
-        }
-
-        .ai-summary.show {
-            display: block;
-            animation: fadeIn 0.3s;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .summary-title {
-            font-weight: bold;
-            color: #48bb78;
-            margin-bottom: 10px;
-            font-size: 1em;
-        }
-
-        .summary-content {
-            color: #2d3748;
-            line-height: 1.6;
-        }
-
-        .summary-loading {
-            color: #718096;
-            font-style: italic;
-        }
-
-        .favorite-btn {
-            display: inline-block;
-            padding: 10px 20px;
-            background: #f6ad55;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: background 0.3s;
-            margin-left: 10px;
-        }
-
-        .favorite-btn:hover {
-            background: #ed8936;
-        }
-
-        .favorite-btn.favorited {
-            background: #fc8181;
-        }
-
-        .favorite-btn.favorited:hover {
-            background: #f56565;
-        }
-
-        .tab-container {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .tab-btn {
-            flex: 1;
-            padding: 15px;
-            font-size: 16px;
-            font-weight: bold;
-            color: white;
-            background: rgba(255,255,255,0.2);
-            border: 2px solid white;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .tab-btn:hover {
-            background: rgba(255,255,255,0.3);
-        }
-
-        .tab-btn.active {
-            background: white;
-            color: #667eea;
-        }
-
-        .favorites-container {
-            display: none;
-        }
-
-        .favorites-container.active {
-            display: block;
-        }
-
-        .favorites-header {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .favorites-count {
-            font-size: 1.2em;
-            color: #667eea;
-            font-weight: bold;
-        }
-
-        .export-btn {
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background 0.3s;
-        }
-
-        .export-btn:hover {
-            background: #764ba2;
-        }
-
-        .delete-btn {
-            display: inline-block;
-            padding: 8px 16px;
-            background: #fc8181;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.85em;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .delete-btn:hover {
-            background: #f56565;
-        }
-
-        .empty-favorites {
-            background: white;
-            border-radius: 15px;
-            padding: 60px 40px;
-            text-align: center;
-            color: #999;
-        }
-
-        .empty-favorites-icon {
-            font-size: 4em;
-            margin-bottom: 20px;
-        }
-
-        .filter-panel {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .filter-title {
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 15px;
-        }
-
-        .filter-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .filter-label {
-            font-size: 0.9em;
-            color: #666;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-
-        .filter-input {
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border 0.3s;
-        }
-
-        .filter-input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .filter-buttons {
-            display: flex;
-            gap: 10px;
-        }
-
-        .apply-filter-btn {
-            flex: 1;
-            padding: 10px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .apply-filter-btn:hover {
-            background: #764ba2;
-        }
-
-        .clear-filter-btn {
-            flex: 1;
-            padding: 10px;
-            background: #e2e8f0;
-            color: #4a5568;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .clear-filter-btn:hover {
-            background: #cbd5e0;
-        }
-
-        .filter-toggle {
-            text-align: center;
-            margin-bottom: 15px;
-        }
-
-        .toggle-btn {
-            background: rgba(255,255,255,0.3);
-            color: white;
-            border: 2px solid white;
-            padding: 8px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: all 0.3s;
-        }
-
-        .toggle-btn:hover {
-            background: rgba(255,255,255,0.5);
-        }
-
-        .results-info {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 0.95em;
-        }
-        
-        .no-results {
-            background: white;
-            border-radius: 15px;
-            padding: 40px;
-            text-align: center;
-            color: #666;
-            font-size: 1.1em;
-        }
-        
-        .error {
-            background: #ff6b6b;
-            color: white;
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .tip {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            font-size: 0.95em;
-            text-align: center;
-        }
-    </style>
+    <title>PubMed 文献研究助手</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🔬 PubMed 文献研究助手</h1>
-            <p>输入关键词，快速搜索医学文献</p>
+        <!-- Header -->
+        <header class="header">
+            <h1 class="header-title">🔬 PubMed 文献研究助手</h1>
+            <p class="header-subtitle">输入关键词，快速搜索医学文献</p>
+        </header>
+
+        <!-- Tip Banner -->
+        <div class="tip-banner">
+            💡 支持中文或英文关键词搜索，输入中文会自动翻译。<br>
+            点击 ⭐ 收藏感兴趣的文献，收藏数据保存在本地浏览器中。
         </div>
 
-        <div class="tip">
-            💡 提示：支持中文或英文关键词！输入中文会自动翻译后搜索。点击 ⭐ 收藏感兴趣的文献
-            <br>
-            <small style="color: rgba(255,255,255,0.8);">⚙️ 使用前请先配置 Worker 代理地址（在代码中修改 CONFIG.WORKER_URL）</small>
-        </div>
+        <!-- Tab Navigation -->
+        <nav class="tab-nav" role="tablist">
+            <button class="tab-btn active" data-tab="search" role="tab" aria-selected="true">
+                🔍 搜索文献
+            </button>
+            <button class="tab-btn" data-tab="favorites" role="tab" aria-selected="false">
+                ⭐ 我的收藏
+            </button>
+        </nav>
 
-        <div class="tab-container">
-            <button class="tab-btn active" onclick="switchTab('search')">🔍 搜索文献</button>
-            <button class="tab-btn" onclick="switchTab('favorites')">⭐ 我的收藏</button>
-        </div>
-        
-        <div id="searchContainer" class="search-container">
+        <!-- Search Panel -->
+        <div id="search-panel" class="panel active" role="tabpanel" aria-labelledby="tab-search">
+            <!-- Filter Toggle -->
             <div class="filter-toggle">
-                <button class="toggle-btn" onclick="toggleFilters()">🔧 显示/隐藏筛选条件</button>
+                <button id="filter-toggle-btn" class="filter-toggle-btn" type="button">
+                    🔧 显示筛选条件
+                </button>
             </div>
 
-            <div id="filterPanel" class="filter-panel" style="display: none;">
-                <div class="filter-title">🎯 高级筛选</div>
-                <div class="filter-row">
+            <!-- Filter Panel -->
+            <div id="filter-panel" class="filter-panel">
+                <div class="filter-panel-title">🎯 高级筛选</div>
+                <div class="filter-grid">
                     <div class="filter-group">
-                        <label class="filter-label">📅 起始年份</label>
-                        <input type="number" id="yearFrom" class="filter-input" placeholder="例如：2020" min="1900" max="2026">
+                        <label for="filter-year-from">起始年份</label>
+                        <input type="number" id="filter-year-from" placeholder="例如：2020" min="1900" max="2026">
                     </div>
                     <div class="filter-group">
-                        <label class="filter-label">📅 结束年份</label>
-                        <input type="number" id="yearTo" class="filter-input" placeholder="例如：2024" min="1900" max="2026">
+                        <label for="filter-year-to">结束年份</label>
+                        <input type="number" id="filter-year-to" placeholder="例如：2024" min="1900" max="2026">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-author">作者姓名</label>
+                        <input type="text" id="filter-author" placeholder="例如：Smith">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filter-journal">期刊名称</label>
+                        <input type="text" id="filter-journal" placeholder="例如：Nature">
                     </div>
                 </div>
-                <div class="filter-row">
-                    <div class="filter-group">
-                        <label class="filter-label">👤 作者姓名</label>
-                        <input type="text" id="authorFilter" class="filter-input" placeholder="例如：Smith">
-                    </div>
-                    <div class="filter-group">
-                        <label class="filter-label">📰 期刊名称</label>
-                        <input type="text" id="journalFilter" class="filter-input" placeholder="例如：Nature">
-                    </div>
-                </div>
-                <div class="filter-row">
-                    <div class="filter-group">
-                        <label class="filter-label">📊 显示数量</label>
-                        <select id="resultLimit" class="filter-input">
-                            <option value="10">10 篇</option>
+                <div class="filter-grid">
+                    <div class="filter-group" style="grid-column: 1 / -1;">
+                        <label for="filter-limit">每页显示数量</label>
+                        <select id="filter-limit">
+                            <option value="10" selected>10 篇</option>
                             <option value="20">20 篇</option>
                             <option value="50">50 篇</option>
                             <option value="100">100 篇</option>
                         </select>
                     </div>
-                    <div class="filter-group" style="align-self: flex-end;">
-                        <div class="filter-buttons">
-                            <button class="clear-filter-btn" onclick="clearFilters()">🔄 清空筛选</button>
-                        </div>
-                    </div>
+                </div>
+                <div class="filter-actions">
+                    <button id="filter-apply-btn" class="filter-btn filter-btn-apply" type="button">应用筛选</button>
+                    <button id="filter-clear-btn" class="filter-btn filter-btn-clear" type="button">清空筛选</button>
                 </div>
             </div>
 
-            <div class="search-box">
-                <input
-                    type="text"
-                    id="searchInput"
-                    class="search-input"
-                    placeholder="输入中文或英文关键词，例如：糖尿病、COVID-19、癌症治疗..."
-                    onkeypress="if(event && event.key==='Enter') searchPubMed()"
-                >
-                <button class="search-btn" onclick="searchPubMed()">🔍 搜索文献</button>
-                <div id="translationInfo" style="margin-top: 10px; color: #667eea; font-size: 0.9em; display: none;"></div>
+            <!-- Search Card -->
+            <div class="search-card">
+                <div class="search-row">
+                    <div class="search-input-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input
+                            type="text"
+                            id="search-input"
+                            class="search-input"
+                            placeholder="输入中文或英文关键词，例如：糖尿病、COVID-19、癌症治疗..."
+                            autocomplete="off"
+                        >
+                    </div>
+                    <button id="search-btn" class="search-btn" type="button">
+                        搜索
+                    </button>
+                </div>
+                <div id="translation-info"></div>
             </div>
-            
-            <div id="resultsInfo" class="results-info" style="display: none;"></div>
-            
-            <div id="loading" class="loading" style="display: none;">
+
+            <!-- Loading -->
+            <div id="loading" style="display: none; text-align: center; color: var(--color-text-muted); padding: 16px; font-size: var(--font-size-sm);">
                 正在搜索中，请稍候...
             </div>
-            
-            <div id="error" style="display: none;"></div>
-            
-            <div id="results" class="results"></div>
+
+            <!-- Error -->
+            <div id="error-container"></div>
+
+            <!-- Results Info -->
+            <div id="results-info"></div>
+
+            <!-- Results List -->
+            <div id="results-list" class="results-list"></div>
+
+            <!-- Pagination -->
+            <div id="pagination" class="pagination"></div>
         </div>
 
-        <div id="favoritesContainer" class="favorites-container">
+        <!-- Favorites Panel -->
+        <div id="favorites-panel" class="panel" role="tabpanel" aria-labelledby="tab-favorites">
             <div class="favorites-header">
-                <div class="favorites-count">📚 收藏数量：<span id="favCount">0</span></div>
-                <button class="export-btn" onclick="exportFavorites()">📥 导出收藏</button>
+                <div class="favorites-count">
+                    📚 收藏数量：<span id="fav-count" class="count-num">0</span>
+                </div>
+                <button id="export-btn" class="btn-export" type="button">
+                    📥 导出收藏
+                </button>
             </div>
-            <div id="favoritesList" class="results"></div>
+            <div id="favorites-list" class="results-list"></div>
         </div>
     </div>
 
-    <script>
-        // ==================== 常量配置 ====================
-        const CONFIG = {
-            WORKER_URL: 'https://pubmed-proxy.wei-bobby.workers.dev',
-            MAX_KEYWORDS: 8,
-            MAX_AUTHORS: 3,
-            DEFAULT_RESULT_LIMIT: 10
-        };
-
-        // ==================== 工具函数 ====================
-        // HTML 转义，防止 XSS 攻击
-        function escapeHtml(unsafe) {
-            if (typeof unsafe !== 'string') return unsafe;
-            return unsafe
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
-        }
-
-        // ==================== 配置代理地址
-        // 在中国网络环境下，使用公开的 CORS 代理
-        // 可用的代理选项：
-        // 1. https://api.allorigins.win/raw?url=  - 在中国可用
-        // 2. https://corsproxy.io/?  - 可能在某些地区受限
-        // 3. 自己的 Cloudflare Worker
-
-        // ==================== 全局状态 ====================
-        let favorites = {};
-
-        // ==================== 收藏功能 - 使用持久化存储
-        // 页面加载时读取收藏
-        async function loadFavorites() {
-            try {
-                const saved = localStorage.getItem('pubmed-favorites');
-                if (saved) {
-                    favorites = JSON.parse(saved);
-                    updateFavoritesCount();
-                }
-            } catch (error) {
-                console.log('No favorites found, starting fresh');
-                favorites = {};
-            }
-        }
-
-        // 保存收藏到存储
-        async function saveFavorites() {
-            try {
-                localStorage.setItem('pubmed-favorites', JSON.stringify(favorites));
-                updateFavoritesCount();
-            } catch (error) {
-                console.error('Save favorites error:', error);
-            }
-        }
-
-        // 切换标签页
-        function switchTab(tab) {
-            const searchContainer = document.getElementById('searchContainer');
-            const favoritesContainer = document.getElementById('favoritesContainer');
-            const tabBtns = document.querySelectorAll('.tab-btn');
-            
-            if (tab === 'search') {
-                searchContainer.style.display = 'block';
-                favoritesContainer.classList.remove('active');
-                tabBtns[0].classList.add('active');
-                tabBtns[1].classList.remove('active');
-            } else {
-                searchContainer.style.display = 'none';
-                favoritesContainer.classList.add('active');
-                tabBtns[0].classList.remove('active');
-                tabBtns[1].classList.add('active');
-                displayFavorites();
-            }
-        }
-
-        // 更新收藏数量
-        function updateFavoritesCount() {
-            const count = Object.keys(favorites).length;
-            const countEl = document.getElementById('favCount');
-            if (countEl) {
-                countEl.textContent = count;
-            }
-        }
-
-        // 切换收藏状态
-        async function toggleFavorite(event) {
-            const btn = event.target;
-            const pmid = btn.dataset.pmid;
-            const article = btn.closest('.article');
-
-            // 从 DOM 获取文章信息
-            const title = article.querySelector('.article-title')?.textContent || '';
-            const authors = article.querySelector('.article-authors')?.textContent.replace('👥 ', '') || '';
-            const journal = article.querySelector('.article-journal')?.textContent.replace('📰 ', '') || '';
-            const pubdate = article.querySelector('.article-meta')?.textContent.match(/📅 (.+) \|/)?.[1] || '';
-
-            if (favorites[pmid]) {
-                delete favorites[pmid];
-            } else {
-                favorites[pmid] = {
-                    pmid,
-                    title,
-                    authors,
-                    journal,
-                    pubdate,
-                    savedAt: new Date().toISOString()
-                };
-            }
-            await saveFavorites();
-            updateFavoriteButton(pmid, btn);
-        }
-
-        // 更新收藏按钮状态
-        function updateFavoriteButton(pmid, btn = document.querySelector(`button[data-pmid="${pmid}"]`)) {
-            if (btn) {
-                if (favorites[pmid]) {
-                    btn.classList.add('favorited');
-                    btn.textContent = '❤️ 已收藏';
-                } else {
-                    btn.classList.remove('favorited');
-                    btn.textContent = '⭐ 收藏';
-                }
-            }
-        }
-
-        // 显示收藏列表
-        function displayFavorites() {
-            const listDiv = document.getElementById('favoritesList');
-            const favArray = Object.values(favorites);
-
-            if (favArray.length === 0) {
-                listDiv.innerHTML = `
-                    <div class="empty-favorites">
-                        <div class="empty-favorites-icon">📚</div>
-                        <h3>还没有收藏任何文献</h3>
-                        <p style="margin-top: 10px;">在搜索结果中点击"⭐ 收藏"按钮来保存感兴趣的文献</p>
-                    </div>
-                `;
-                return;
-            }
-
-            // 按保存时间倒序排列
-            favArray.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
-
-            listDiv.innerHTML = '';
-            favArray.forEach(article => {
-                const articleDiv = document.createElement('div');
-                articleDiv.className = 'article';
-
-                // 安全地设置内容，防止 XSS
-                articleDiv.innerHTML = `
-                    <div class="article-title">${escapeHtml(article.title || '标题不详')}</div>
-                    <div class="article-authors">👥 ${escapeHtml(article.authors)}</div>
-                    <div class="article-journal">📰 ${escapeHtml(article.journal)}</div>
-                    <div class="article-meta">📅 ${escapeHtml(article.pubdate)} | PMID: ${escapeHtml(article.pmid)}</div>
-                    <div class="article-meta">💾 收藏时间: ${escapeHtml(new Date(article.savedAt).toLocaleString('zh-CN'))}</div>
-                    <a href="https://pubmed.ncbi.nlm.nih.gov/${escapeHtml(article.pmid)}/" target="_blank" class="article-link">
-                        查看 PubMed 原文 →
-                    </a>
-                    <button class="summary-btn" data-article='${JSON.stringify({
-                        pmid: article.pmid,
-                        title: article.title,
-                        authors: article.authors,
-                        journal: article.journal
-                    })}'">
-                        📄 查看摘要
-                    </button>
-                    <button class="delete-btn" data-pmid="${article.pmid}">
-                        🗑️ 删除
-                    </button>
-                    <div id="summary-${article.pmid}" class="ai-summary"></div>
-                `;
-                listDiv.appendChild(articleDiv);
-            });
-        }
-
-        // 删除收藏
-        async function deleteFavorite(pmid) {
-            if (confirm('确定要删除这篇收藏吗？')) {
-                delete favorites[pmid];
-                await saveFavorites();
-                displayFavorites();
-            }
-        }
-
-        // 导出收藏
-        function exportFavorites() {
-            const favArray = Object.values(favorites);
-            
-            if (favArray.length === 0) {
-                alert('没有收藏可以导出！');
-                return;
-            }
-            
-            let exportText = 'PubMed 文献收藏列表\n';
-            exportText += '导出时间: ' + new Date().toLocaleString('zh-CN') + '\n';
-            exportText += '=' .repeat(60) + '\n\n';
-            
-            favArray.forEach((article, index) => {
-                exportText += `${index + 1}. ${article.title}\n`;
-                exportText += `   作者: ${article.authors}\n`;
-                exportText += `   期刊: ${article.journal}\n`;
-                exportText += `   发表时间: ${article.pubdate}\n`;
-                exportText += `   PMID: ${article.pmid}\n`;
-                exportText += `   链接: https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/\n`;
-                exportText += `   收藏时间: ${new Date(article.savedAt).toLocaleString('zh-CN')}\n\n`;
-            });
-            
-            // 创建下载
-            const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `PubMed收藏_${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // 页面加载时初始化
-        function initApp() {
-            loadFavorites();
-
-            // 事件委托：处理按钮点击
-            document.addEventListener('click', (e) => {
-                const btn = e.target.closest('button');
-                if (!btn) return;
-
-                // 处理查看摘要按钮
-                if (btn.classList.contains('summary-btn') && btn.dataset.article) {
-                    generateSummary(e);
-                }
-
-                // 处理收藏按钮
-                if (btn.classList.contains('favorite-btn') && btn.dataset.pmid) {
-                    toggleFavorite(e);
-                }
-
-                // 处理删除收藏按钮
-                if (btn.classList.contains('delete-btn') && btn.dataset.pmid) {
-                    deleteFavorite(btn.dataset.pmid);
-                }
-            });
-        }
-
-        window.addEventListener('load', initApp);
-
-        // 筛选功能
-        function toggleFilters() {
-            const panel = document.getElementById('filterPanel');
-            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-        }
-
-        function clearFilters() {
-            document.getElementById('yearFrom').value = '';
-            document.getElementById('yearTo').value = '';
-            document.getElementById('authorFilter').value = '';
-            document.getElementById('journalFilter').value = '';
-            document.getElementById('resultLimit').value = '10';
-        }
-
-        // 构建搜索查询
-        function buildSearchQuery(baseQuery) {
-            let query = baseQuery;
-            
-            // 年份筛选
-            const yearFrom = document.getElementById('yearFrom').value;
-            const yearTo = document.getElementById('yearTo').value;
-            
-            if (yearFrom && yearTo) {
-                query += ` AND ${yearFrom}:${yearTo}[dp]`;
-            } else if (yearFrom) {
-                query += ` AND ${yearFrom}:2026[dp]`;
-            } else if (yearTo) {
-                query += ` AND 1900:${yearTo}[dp]`;
-            }
-            
-            // 作者筛选
-            const author = document.getElementById('authorFilter').value.trim();
-            if (author) {
-                query += ` AND ${author}[Author]`;
-            }
-            
-            // 期刊筛选
-            const journal = document.getElementById('journalFilter').value.trim();
-            if (journal) {
-                query += ` AND ${journal}[Journal]`;
-            }
-            
-            return query;
-        }
-
-        // 显示筛选信息
-        function displayFilterInfo(baseQuery, totalResults) {
-            const resultsInfo = document.getElementById('resultsInfo');
-            const yearFrom = document.getElementById('yearFrom').value;
-            const yearTo = document.getElementById('yearTo').value;
-            const author = document.getElementById('authorFilter').value.trim();
-            const journal = document.getElementById('journalFilter').value.trim();
-            
-            let filterText = [];
-            
-            if (yearFrom || yearTo) {
-                const yearRange = yearFrom && yearTo ? `${yearFrom}-${yearTo}` : 
-                                 yearFrom ? `${yearFrom}年起` : 
-                                 `${yearTo}年前`;
-                filterText.push(`📅 年份: ${yearRange}`);
-            }
-            
-            if (author) {
-                filterText.push(`👤 作者: ${author}`);
-            }
-            
-            if (journal) {
-                filterText.push(`📰 期刊: ${journal}`);
-            }
-            
-            if (filterText.length > 0) {
-                resultsInfo.innerHTML = `🎯 筛选条件: ${filterText.join(' | ')} | 📊 找到 ${totalResults} 篇文献`;
-                resultsInfo.style.display = 'block';
-            } else {
-                resultsInfo.style.display = 'none';
-            }
-        }
-
-        // 检测是否包含中文字符
-        function hasChinese(text) {
-            return /[\u4e00-\u9fa5]/.test(text);
-        }
-
-        // 翻译中文到英文
-        async function translateToEnglish(text) {
-            try {
-                const apiUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl=en&dt=t&q=${encodeURIComponent(text)}`;
-                
-                let response;
-                if (CONFIG.WORKER_URL) {
-                    response = await fetch(`${CONFIG.WORKER_URL}?url=${encodeURIComponent(apiUrl)}`);
-                } else {
-                    response = await fetch(apiUrl);
-                }
-                
-                const data = await response.json();
-                return data[0][0][0];
-            } catch (error) {
-                console.error('Translation error:', error);
-                return text;
-            }
-        }
-
-        // 通用 fetch 函数，使用 Worker 代理
-        async function fetchWithProxy(url) {
-            if (CONFIG.WORKER_URL) {
-                const proxyUrl = `${CONFIG.WORKER_URL}?url=${encodeURIComponent(url)}`;
-                const response = await fetch(proxyUrl);
-
-                // 检查响应是否有效
-                const text = await response.text();
-                // 如果返回的是 HTML（错误页面），抛出错误
-                if (text.trim().startsWith('<') || text.trim().startsWith('<!')) {
-                    throw new Error('代理返回了错误页面');
-                }
-
-                // 返回一个模拟的 Response 对象
-                return {
-                    ok: response.ok,
-                    status: response.status,
-                    statusText: response.statusText,
-                    json: async () => JSON.parse(text),
-                    text: async () => text
-                };
-            } else {
-                // 如果没有配置 Worker，尝试多个代理
-                const proxies = [
-                    'https://api.allorigins.win/raw?url=',
-                    'https://api.codetabs.com/v1/proxy?quest=',
-                    'https://corsproxy.io/?',
-                    ''  // 直接连接（可能在某些情况下工作）
-                ];
-
-                for (const proxy of proxies) {
-                    try {
-                        const proxyUrl = proxy ? proxy + encodeURIComponent(url) : url;
-                        const response = await fetch(proxyUrl);
-                        if (response.ok) return response;
-                    } catch (e) {
-                        continue;
-                    }
-                }
-                throw new Error('所有代理都失败了');
-            }
-        }
-
-        async function searchPubMed() {
-            const query = document.getElementById('searchInput').value.trim();
-            const resultsDiv = document.getElementById('results');
-            const loadingDiv = document.getElementById('loading');
-            const errorDiv = document.getElementById('error');
-            const searchBtn = document.querySelector('.search-btn');
-            const translationInfo = document.getElementById('translationInfo');
-            
-            if (!query) {
-                alert('请输入搜索关键词！');
-                return;
-            }
-            
-            // 显示加载状态
-            loadingDiv.style.display = 'block';
-            resultsDiv.innerHTML = '';
-            errorDiv.style.display = 'none';
-            translationInfo.style.display = 'none';
-            searchBtn.disabled = true;
-            
-            try {
-                let searchQuery = query;
-                
-                // 如果包含中文，先翻译
-                if (hasChinese(query)) {
-                    loadingDiv.textContent = '正在翻译关键词...';
-                    searchQuery = await translateToEnglish(query);
-                    translationInfo.innerHTML = `🌐 已翻译为：<strong>${searchQuery}</strong>`;
-                    translationInfo.style.display = 'block';
-                    loadingDiv.textContent = '正在搜索中，请稍候...';
-                }
-                
-                // 应用高级筛选
-                const finalQuery = buildSearchQuery(searchQuery);
-                
-                // 获取显示数量限制
-                const limit = document.getElementById('resultLimit').value || '10';
-                
-                // 构建搜索 URL
-                const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(finalQuery)}&retmax=${limit}&retmode=json`;
-                
-                const searchResponse = await fetchWithProxy(searchUrl);
-                
-                if (!searchResponse.ok) {
-                    throw new Error('搜索请求失败');
-                }
-                
-                const searchData = await searchResponse.json();
-                const idList = searchData.esearchresult.idlist;
-                const totalCount = searchData.esearchresult.count;
-                
-                // 显示筛选信息
-                displayFilterInfo(searchQuery, totalCount);
-                
-                if (!idList || idList.length === 0) {
-                    resultsDiv.innerHTML = '<div class="no-results">😕 没有找到符合条件的文献，请尝试：<br>• 调整筛选条件<br>• 使用其他关键词<br>• 扩大年份范围</div>';
-                    loadingDiv.style.display = 'none';
-                    searchBtn.disabled = false;
-                    return;
-                }
-                
-                // 获取文章详细信息
-                const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${idList.join(',')}&retmode=json`;
-                const fetchResponse = await fetchWithProxy(fetchUrl);
-                
-                if (!fetchResponse.ok) {
-                    throw new Error('获取详情失败');
-                }
-                
-                const fetchData = await fetchResponse.json();
-                
-                // 显示结果
-                resultsDiv.innerHTML = '';
-                idList.forEach(id => {
-                    const article = fetchData.result[id];
-                    if (article) {
-                        const articleDiv = document.createElement('div');
-                        articleDiv.className = 'article';
-
-                        const authors = article.authors ?
-                            article.authors.slice(0, CONFIG.MAX_AUTHORS).map(a => a.name).join(', ') +
-                            (article.authors.length > CONFIG.MAX_AUTHORS ? ', et al.' : '') :
-                            '作者信息不详';
-
-                        const pubdate = article.pubdate || '日期不详';
-                        const journal = article.fulljournalname || article.source || '期刊信息不详';
-                        const pmid = article.uid || id;
-
-                        // 安全地设置内容，防止 XSS
-                        const articleData = JSON.stringify({ pmid, title: article.title, authors, journal });
-                        articleDiv.innerHTML = `
-                            <div class="article-title">${escapeHtml(article.title || '标题不详')}</div>
-                            <div class="article-authors">👥 ${escapeHtml(authors)}</div>
-                            <div class="article-journal">📰 ${escapeHtml(journal)}</div>
-                            <div class="article-meta">📅 ${escapeHtml(pubdate)} | PMID: ${escapeHtml(pmid)}</div>
-                            <a href="https://pubmed.ncbi.nlm.nih.gov/${escapeHtml(pmid)}/" target="_blank" class="article-link">
-                                查看 PubMed 原文 →
-                            </a>
-                            <button class="summary-btn" data-article='${articleData}'>
-                                📄 查看摘要
-                            </button>
-                            <button class="favorite-btn ${favorites[pmid] ? 'favorited' : ''}" data-pmid="${escapeHtml(pmid)}">
-                                ${favorites[pmid] ? '❤️ 已收藏' : '⭐ 收藏'}
-                            </button>
-                            <div id="summary-${pmid}" class="ai-summary"></div>
-                        `;
-
-                        resultsDiv.appendChild(articleDiv);
-                    }
-                });
-                
-            } catch (error) {
-                console.error('Error:', error);
-                const workerTip = CONFIG.WORKER_URL ? '' : '<br>💡 建议：配置 Cloudflare Worker 代理以获得更稳定的访问';
-                errorDiv.innerHTML = `<div class="error">❌ 搜索出错：${error.message}<br><br>可能的原因：<br>1. 网络环境限制<br>2. PubMed 服务暂时不可用${workerTip}<br><br>📖 或直接访问 <a href="https://pubmed.ncbi.nlm.nih.gov" target="_blank" style="color: white; text-decoration: underline;">PubMed 官网</a></div>`;
-                errorDiv.style.display = 'block';
-            } finally {
-                loadingDiv.style.display = 'none';
-                searchBtn.disabled = false;
-            }
-        }
-
-        // AI 总结功能 - 获取并展示文献摘要
-        async function generateSummary(event) {
-            const btn = event.target;
-            const articleData = JSON.parse(btn.dataset.article);
-
-            const pmid = articleData.pmid;
-            const summaryDiv = document.getElementById(`summary-${pmid}`);
-
-            // 如果已经有总结，切换显示/隐藏
-            if (summaryDiv.classList.contains('show')) {
-                summaryDiv.classList.remove('show');
-                btn.textContent = '📄 查看摘要';
-                return;
-            }
-
-            // 显示加载状态
-            btn.disabled = true;
-            btn.textContent = '⏳ 加载中...';
-            summaryDiv.innerHTML = '<div class="summary-loading">正在获取文献摘要...</div>';
-            summaryDiv.classList.add('show');
-
-            try {
-                // 获取文献摘要
-                const abstractUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${pmid}&retmode=xml`;
-                const response = await fetchWithProxy(abstractUrl);
-                const xmlText = await response.text();
-
-                // 解析 XML 获取摘要
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-
-                // 获取摘要文本
-                const abstractElements = xmlDoc.getElementsByTagName('AbstractText');
-                let abstractText = '';
-
-                if (abstractElements.length > 0) {
-                    for (let i = 0; i < abstractElements.length; i++) {
-                        const label = abstractElements[i].getAttribute('Label');
-                        const text = abstractElements[i].textContent;
-                        if (label) {
-                            abstractText += `<strong>${escapeHtml(label)}:</strong> ${escapeHtml(text)}<br><br>`;
-                        } else {
-                            abstractText += escapeHtml(text) + '<br><br>';
-                        }
-                    }
-                } else {
-                    abstractText = '该文献暂无摘要信息。';
-                }
-
-                // 获取关键词
-                const keywordElements = xmlDoc.getElementsByTagName('Keyword');
-                let keywords = '';
-                if (keywordElements.length > 0) {
-                    const keywordList = [];
-                    for (let i = 0; i < Math.min(keywordElements.length, CONFIG.MAX_KEYWORDS); i++) {
-                        keywordList.push(keywordElements[i].textContent);
-                    }
-                    keywords = `<div style="margin-top: 15px;"><strong>🏷️ 关键词：</strong>${escapeHtml(keywordList.join(', '))}</div>`;
-                }
-
-                summaryDiv.innerHTML = `
-                    <div class="summary-title">📄 文献摘要</div>
-                    <div class="summary-content">
-                        ${abstractText}
-                        ${keywords}
-                    </div>
-                `;
-                btn.textContent = '✅ 隐藏摘要';
-                btn.disabled = false;
-
-            } catch (error) {
-                console.error('Abstract fetch error:', error);
-                summaryDiv.innerHTML = `
-                    <div class="summary-title">📋 文献信息</div>
-                    <div class="summary-content">
-                        <strong>标题：</strong>${escapeHtml(articleData.title)}<br><br>
-                        <strong>作者：</strong>${escapeHtml(articleData.authors)}<br><br>
-                        <strong>期刊：</strong>${escapeHtml(articleData.journal)}<br><br>
-                        <em>提示：点击"查看 PubMed 原文"可以查看完整的摘要和详细信息。</em>
-                    </div>
-                `;
-                btn.textContent = '✅ 隐藏信息';
-                btn.disabled = false;
-            }
-        }
-    </script>
+    <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
