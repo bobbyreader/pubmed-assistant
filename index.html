@@ -1249,6 +1249,16 @@ function gistCacheSet(pmid, text){
     localStorage.setItem(GIST_KEY, JSON.stringify(c));
   }catch(e){ /* best effort */ }
 }
+async function translateWithRetry(text, mode){
+  // Agnes is rate-limited per source IP (Cloudflare egress is shared), so a
+  // single failed attempt is often transient: wait and retry before giving up.
+  let lastErr = null;
+  for(let i = 0; i < 3; i++){
+    try{ return await translateText(text, "en", "zh-CN", mode); }
+    catch(e){ lastErr = e; if(i < 2) await new Promise(r => setTimeout(r, 9000)); }
+  }
+  throw lastErr || new Error("translate failed");
+}
 async function loadGist(article, abs){
   if(gistMem.has(article.pmid)) return gistMem.get(article.pmid);
   const cached = gistCacheGet(article.pmid);
@@ -1258,14 +1268,14 @@ async function loadGist(article, abs){
     const obj = abs.segments.find(s => /objective|background|purpose|aim/i.test(s.label || "")) || abs.segments[0];
     const concl = abs.segments.find(s => /conclusion/i.test(s.label || ""));
     const src = [obj && obj.text, concl && concl.text].filter(Boolean).join(" ").slice(0, 2500) || abs.plain.slice(0, 2500);
-    let zh = await translateText(src, "en", "zh-CN", "gist");
+    let zh = await translateWithRetry(src, "gist");
     zh = String(zh || "").replace(/\s+/g, " ").trim();
     const sentences = zh.split(/(?<=。)/).filter(Boolean);
     out = sentences.length ? sentences[0] : zh;
     if(out.length < 25 && sentences.length > 1) out += sentences[1];
     if(out.length > 95) out = out.slice(0, 95) + "…";
   } else {
-    const zh = await translateText(article.title, "en", "zh-CN", "generic");
+    const zh = await translateWithRetry(article.title, "generic");
     out = "（仅标题翻译）" + String(zh || "").trim();
   }
   if(out){ gistMem.set(article.pmid, out); gistCacheSet(article.pmid, out); }
@@ -1346,12 +1356,24 @@ async function toggleAbstract(article, box, btn){
     // Chinese one-line gist at the top of the abstract
     const gist = document.createElement("div"); gist.className = "gist-line";
     const gLabel = document.createElement("strong"); gLabel.textContent = "中文速览";
-    const gText = document.createElement("span"); gText.textContent = "生成中…";
-    gist.append(gLabel, gText);
+    const gText = document.createElement("span");
+    const retryBtn = document.createElement("button");
+    retryBtn.className = "btn btn-small"; retryBtn.type = "button";
+    retryBtn.textContent = "重试速览"; retryBtn.style.display = "none"; retryBtn.style.marginLeft = "8px";
+    const runGist = () => {
+      gText.textContent = "生成中…（服务繁忙时可能要等半分钟）";
+      retryBtn.style.display = "none";
+      loadGist(article, abs)
+        .then(t => {
+          if(t){ gText.textContent = t; }
+          else { gText.textContent = "暂不可用"; retryBtn.style.display = ""; }
+        })
+        .catch(() => { gText.textContent = "暂不可用"; retryBtn.style.display = ""; });
+    };
+    retryBtn.addEventListener("click", runGist);
+    gist.append(gLabel, gText, retryBtn);
     box.appendChild(gist);
-    loadGist(article, abs)
-      .then(t => { gText.textContent = t || "暂不可用"; })
-      .catch(() => { gText.textContent = "暂不可用"; });
+    runGist();
 
     const enWrap = document.createElement("div");
     if(!abs.segments.length){
