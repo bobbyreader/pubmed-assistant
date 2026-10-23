@@ -131,8 +131,18 @@ function agnesSystemPrompt(mode, sl, tl) {
   return "You are a professional translator. Translate the user's text faithfully from " + sl + " to " + tl + ". Output ONLY the translation — no quotes, no explanations, no extra words.";
 }
 
+function sanitizeTranslation(out, mode) {
+  let s = String(out || "").trim();
+  /* LLMs occasionally wrap output in markdown fences despite instructions. */
+  s = s.replace(/^```[a-zA-Z]*\s*/, "").replace(/\s*```$/, "").trim();
+  if (mode === "query") {
+    s = s.replace(/\s*\n\s*/g, " ").replace(/^["“”']+|["“”']+$/g, "").trim();
+  }
+  return s;
+}
+
 async function translateViaAgnes(text, sl, tl, mode, env) {
-  const res = await fetchWithTimeout(AGNES_BASE + "/chat/completions", {
+  const payload = {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -147,15 +157,26 @@ async function translateViaAgnes(text, sl, tl, mode, env) {
       temperature: 0,
       max_tokens: 3000,
     }),
-  }, 20000);
-  if (!res.ok) throw new Error("agnes HTTP " + res.status);
+  };
+  /* Agnes rate-limits per source IP; Cloudflare egress IPs are shared and
+   * often throttled, while the key itself is fine. A 429 costs little time,
+   * so retry a few times with backoff — each attempt may egress elsewhere. */
+  let res = null;
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 1200 * attempt));
+    res = await fetchWithTimeout(AGNES_BASE + "/chat/completions", payload, 20000);
+    lastStatus = res.status;
+    if (res.status !== 429) break;
+  }
+  if (!res.ok) throw new Error("agnes HTTP " + lastStatus);
   const data = await res.json();
   const choice = data && data.choices && data.choices[0];
   let content = choice && choice.message ? choice.message.content : "";
   if (Array.isArray(content)) {
     content = content.map(part => (typeof part === "string" ? part : (part && part.text) || "")).join("");
   }
-  const out = String(content || "").trim();
+  const out = sanitizeTranslation(String(content || ""), mode);
   if (!out) throw new Error("agnes empty response");
   return out;
 }
