@@ -136,7 +136,9 @@ function sanitizeTranslation(out, mode) {
   /* LLMs occasionally wrap output in markdown fences despite instructions. */
   s = s.replace(/^```[a-zA-Z]*\s*/, "").replace(/\s*```$/, "").trim();
   if (mode === "query") {
-    s = s.replace(/\s*\n\s*/g, " ").replace(/^["“”']+|["“”']+$/g, "").trim();
+    /* A search query is one line; models sometimes append explanations
+     * after a newline — keep only the first line, then tidy quotes. */
+    s = s.split(/\r?\n/)[0].replace(/^["“”']+|["“”']+$/g, "").trim();
   }
   return s;
 }
@@ -168,6 +170,7 @@ async function translateViaAgnes(text, sl, tl, mode, env) {
     res = await fetchWithTimeout(AGNES_BASE + "/chat/completions", payload, 20000);
     lastStatus = res.status;
     if (res.status !== 429) break;
+    try { if (res.body) await res.body.cancel(); } catch (e) { /* ignore */ }
   }
   if (!res.ok) throw new Error("agnes HTTP " + lastStatus);
   const data = await res.json();
@@ -226,6 +229,15 @@ async function handleTranslate(request, env) {
 /* ---------------- router ---------------- */
 export default {
   async fetch(request, env, ctx) {
+    try {
+      return await route(request, env, ctx);
+    } catch (e) {
+      return jsonResponse({ error: "WORKER_EXCEPTION", detail: String(e && e.message || e) }, 502);
+    }
+  },
+};
+
+async function route(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
       if (url.pathname === "/api/search") {
@@ -243,5 +255,4 @@ export default {
       return jsonResponse({ error: "not found" }, 404);
     }
     return env.ASSETS.fetch(request);
-  },
-};
+}
