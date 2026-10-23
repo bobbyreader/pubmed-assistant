@@ -160,7 +160,7 @@ async function translateViaAgnes(text, sl, tl, mode, env) {
       "Authorization": "Bearer " + env.AGNES_API_KEY,
     },
     body: JSON.stringify({
-      model: env.AGNES_MODEL || "agnes-2.5-flash",
+      model: env.AGNES_MODEL || "agnes-3.0-flash",
       messages: [
         { role: "system", content: agnesSystemPrompt(mode, sl, tl) },
         { role: "user", content: text },
