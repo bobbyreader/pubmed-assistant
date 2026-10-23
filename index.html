@@ -1,137 +1,1393 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PubMed 文献研究助手</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PubMed 文献研究助手 v2</title>
+<meta name="description" content="PubMed 医学文献搜索：中文关键词、类型/全文/时间筛选、引文复制与 BibTeX/RIS/CSV 导出、本地收藏">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b5cad'/%3E%3Ctext x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EP%3C/text%3E%3C/svg%3E">
+<style>
+/* ============ Design tokens ============ */
+:root{
+  /* 浅色模式：暖色调（第二档）—— 米纸底色 + 奶油暖白面板 + 暖棕灰文字，暖意明显但不发黄；强调蓝保留，保证医学工具的专业感 */
+  --bg:#f3ead8; --bg-panel:#fef9ec; --bg-subtle:#eadfc6; --bg-hover:#f2e8d2;
+  --text:#2f2518; --text-2:#5d4d36; --text-3:#8f7a52;
+  --accent:#0b5cad; --accent-hover:#094e91; --accent-bg:#e6ecf0;
+  --border:#dccbaa; --border-strong:#bfa87e;
+  --success:#17683f; --success-bg:#e6f0da;
+  --warning:#96690a; --warning-bg:#fceed0;
+  --danger:#b42318; --danger-bg:#f9e8dd;
+  --mark:#ffdf8a;
+  --shadow:0 1px 2px rgba(101,79,43,.09),0 4px 14px rgba(101,79,43,.08);
+  --radius:10px; --radius-s:7px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --card-pad:16px; --card-gap:12px; --line:1.55;
+}
+html[data-theme="dark"]{
+  --bg:#10151c; --bg-panel:#171e28; --bg-subtle:#1e2734; --bg-hover:#1c2634;
+  --text:#e6edf5; --text-2:#a9b8c9; --text-3:#7d8da1;
+  --accent:#5aa2e8; --accent-hover:#7ab3ee; --accent-bg:#1d324e;
+  --border:#2b394c; --border-strong:#42536b;
+  --success:#4cc38a; --success-bg:#173528;
+  --warning:#e5b95c; --warning-bg:#3a3013;
+  --danger:#ff8a80; --danger-bg:#3d1d1a;
+  --mark:#6b5c00;
+  --shadow:0 1px 2px rgba(0,0,0,.35),0 4px 14px rgba(0,0,0,.25);
+}
+html[data-density="compact"]{ --card-pad:10px; --card-gap:8px; --line:1.4; }
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);line-height:var(--line);font-size:15px}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+mark{background:var(--mark);color:inherit;padding:0 1px;border-radius:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ============ Top bar / sticky search ============ */
+.topbar{position:sticky;top:0;z-index:50;background:var(--bg-panel);border-bottom:1px solid var(--border);box-shadow:var(--shadow)}
+.topbar-inner{max-width:1440px;margin:0 auto;padding:10px 20px;display:flex;flex-direction:column;gap:8px}
+.brand-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;color:var(--text)}
+.brand-badge{width:30px;height:30px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:16px;font-weight:700;flex:none}
+.brand small{font-weight:400;color:var(--text-3);font-size:12px}
+.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tabs{display:flex;background:var(--bg-subtle);border:1px solid var(--border);border-radius:999px;padding:2px}
+.tab-btn{border:0;background:transparent;color:var(--text-2);padding:6px 14px;border-radius:999px;font-size:14px}
+.tab-btn[aria-selected="true"]{background:var(--bg-panel);color:var(--text);font-weight:600;box-shadow:var(--shadow)}
+.icon-btn{border:1px solid var(--border);background:var(--bg-panel);color:var(--text-2);border-radius:999px;padding:6px 12px;font-size:13px}
+.icon-btn:hover{background:var(--bg-hover);color:var(--text)}
+.search-row{display:flex;gap:8px}
+.search-wrap{flex:1;display:flex;align-items:center;gap:8px;border:1.5px solid var(--border-strong);border-radius:999px;padding:0 6px 0 16px;background:var(--bg-panel)}
+.search-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+.search-wrap svg{flex:none;color:var(--text-3)}
+#search-input{flex:1;border:0;outline:none;background:transparent;color:var(--text);font-size:16px;padding:11px 0;min-width:0}
+#search-input::placeholder{color:var(--text-3)}
+.btn{border:1px solid var(--border);background:var(--bg-panel);color:var(--text);border-radius:999px;padding:8px 16px;font-size:14px}
+.btn:hover{background:var(--bg-hover)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;padding:9px 22px}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-small{padding:5px 11px;font-size:13px}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--accent)}
+.btn-ghost:hover{background:var(--accent-bg)}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chips .chip-label{font-size:12px;color:var(--text-3)}
+.chip{border:1px solid var(--border);background:var(--bg-subtle);color:var(--text-2);border-radius:999px;padding:3px 10px;font-size:12.5px;font-family:var(--mono)}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.translation-info{font-size:13px;color:var(--text-2);background:var(--accent-bg);border-radius:var(--radius-s);padding:6px 10px;display:none}
+.translation-info.show{display:block}
+.translation-info code{font-family:var(--mono)}
+
+/* ============ Layout ============ */
+.layout{max-width:1440px;margin:0 auto;padding:18px 20px 60px;display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px;align-items:start}
+.sidebar{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:sticky;top:132px;max-height:calc(100vh - 150px);overflow:auto}
+.sidebar h2{font-size:14px;margin:0 0 4px}
+.filter-group{border-top:1px solid var(--border);padding:12px 0}
+.filter-group:first-of-type{border-top:0}
+.filter-group legend,.filter-title{font-size:13px;font-weight:600;color:var(--text);margin:0 0 8px;display:block}
+fieldset{border:0;margin:0;padding:0}
+.check-row,.radio-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:14px;color:var(--text-2);cursor:pointer}
+.check-row input,.radio-row input{accent-color:var(--accent);width:16px;height:16px;flex:none}
+.filter-input{width:100%;border:1px solid var(--border);border-radius:var(--radius-s);background:var(--bg-panel);color:var(--text);padding:7px 9px;font-size:14px;margin-bottom:6px}
+.filter-input::placeholder{color:var(--text-3)}
+.year-row{display:flex;gap:6px;align-items:center}
+.year-row .filter-input{margin:0}
+select.filter-input{appearance:auto}
+.sidebar-actions{display:flex;gap:8px;margin-top:6px}
+.history-list{display:flex;flex-direction:column;gap:4px}
+.history-item{display:flex;align-items:center;gap:6px;text-align:left;border:0;background:transparent;color:var(--text-2);font-size:13.5px;padding:5px 7px;border-radius:var(--radius-s);width:100%}
+.history-item:hover{background:var(--bg-hover);color:var(--text)}
+.history-item span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.empty-note{font-size:13px;color:var(--text-3)}
+.filter-toggle-btn{display:none;width:100%;margin-bottom:12px}
+
+/* ============ Results ============ */
+.results-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.results-head h2{font-size:16px;margin:0}
+.results-count{color:var(--text-2);font-size:14px}
+.results-tools{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--text-2)}
+.results-tools select{border:1px solid var(--border);border-radius:var(--radius-s);background:var(--bg-panel);color:var(--text);padding:6px 8px;font-size:13.5px}
+.query-translation{display:none;background:var(--bg-panel);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius-s);padding:9px 12px;font-size:13px;color:var(--text-2);margin:10px 0;word-break:break-word}
+.query-translation.show{display:block}
+.query-translation code{font-family:var(--mono);color:var(--text)}
+.batch-bar{display:none;align-items:center;gap:8px;flex-wrap:wrap;background:var(--accent-bg);border:1px solid var(--border);border-radius:var(--radius-s);padding:8px 12px;margin:10px 0;font-size:13.5px}
+.batch-bar.show{display:flex}
+.status-box{border-radius:var(--radius);padding:28px 20px;text-align:center;background:var(--bg-panel);border:1px dashed var(--border-strong);color:var(--text-2);margin-top:14px}
+.status-box.error{border-color:var(--danger);background:var(--danger-bg);color:var(--text)}
+.status-box .status-title{font-weight:600;font-size:16px;color:var(--text);margin-bottom:6px}
+.skeleton{display:flex;flex-direction:column;gap:var(--card-gap);margin-top:14px}
+.skel-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad)}
+.skel-line{height:13px;border-radius:6px;background:var(--bg-subtle);margin:8px 0;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.45}}
+.results-list{display:flex;flex-direction:column;gap:var(--card-gap);margin-top:12px}
+
+/* ============ Article card ============ */
+.card{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:var(--card-pad);box-shadow:var(--shadow)}
+.card.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg)}
+.card-top{display:flex;gap:10px;align-items:flex-start}
+.card-check{margin-top:3px;width:17px;height:17px;accent-color:var(--accent);flex:none}
+.card-main{flex:1;min-width:0}
+.card-title{font-size:16.5px;font-weight:600;line-height:1.4;margin:0}
+.card-title a{color:var(--text)} .card-title a:hover{color:var(--accent);text-decoration:underline}
+.card-authors{color:var(--text-2);font-size:13.5px;margin-top:4px}
+.card-journal{color:var(--text-2);font-size:13.5px;margin-top:2px}
+.card-journal .journal-name{font-style:italic}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tag{font-size:12px;border-radius:999px;padding:2px 9px;background:var(--bg-subtle);color:var(--text-2);border:1px solid var(--border)}
+.tag.type{background:var(--accent-bg);color:var(--accent);border-color:transparent;font-weight:500}
+.tag.free{background:var(--success-bg);color:var(--success);border-color:transparent;font-weight:600}
+.card-links{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
+.fav-btn.is-fav{background:var(--warning-bg);border-color:var(--warning);color:var(--warning);font-weight:600}
+.abstract-box{display:none;margin-top:12px;background:var(--bg-subtle);border-radius:var(--radius-s);padding:12px 14px;font-size:14px}
+.abstract-box.show{display:block}
+.abstract-box h4{margin:10px 0 4px;font-size:13px;color:var(--accent);text-transform:none}
+.abstract-box h4:first-child{margin-top:0}
+.abstract-box p{margin:0 0 8px}
+.abstract-box .mesh{font-size:13px;color:var(--text-2)}
+.abstract-box .abstract-tools{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.copied-note{font-size:12.5px;color:var(--success);align-self:center}
+
+/* ============ Pagination ============ */
+.pagination{display:none;align-items:center;justify-content:center;gap:6px;margin-top:22px;flex-wrap:wrap}
+.pagination.show{display:flex}
+.page-info{font-size:13.5px;color:var(--text-2);margin:0 8px}
+
+/* ============ Favorites ============ */
+.fav-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.fav-tools .filter-input{width:auto;flex:1;min-width:160px;margin:0}
+.fav-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.fav-edit{margin-top:10px;display:grid;gap:6px}
+.fav-edit label{font-size:12.5px;color:var(--text-3)}
+.fav-edit input,.fav-edit textarea{border:1px solid var(--border);border-radius:var(--radius-s);background:var(--bg-panel);color:var(--text);padding:7px 9px;font-size:13.5px;font-family:inherit;width:100%}
+.export-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-s);padding:10px 12px;font-size:13.5px;color:var(--text-2)}
+footer.site{max-width:1440px;margin:0 auto;padding:0 20px 36px;color:var(--text-3);font-size:12.5px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:9px 18px;border-radius:999px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ============ Responsive ============ */
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr;padding:14px 14px 50px}
+  .sidebar{position:static;max-height:none;display:none}
+  .sidebar.open{display:block}
+  .filter-toggle-btn{display:block}
+  .topbar-inner{padding:10px 14px}
+  .brand small{display:none}
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <h1 class="header-title">🔬 PubMed 文献研究助手</h1>
-            <p class="header-subtitle">输入关键词，快速搜索医学文献</p>
-        </header>
-
-        <!-- Tip Banner -->
-        <div class="tip-banner">
-            💡 支持中文或英文关键词搜索，输入中文会自动翻译。<br>
-            点击 ⭐ 收藏感兴趣的文献，收藏数据保存在本地浏览器中。
-        </div>
-
-        <!-- Tab Navigation -->
-        <nav class="tab-nav" role="tablist">
-            <button class="tab-btn active" data-tab="search" role="tab" aria-selected="true">
-                🔍 搜索文献
-            </button>
-            <button class="tab-btn" data-tab="favorites" role="tab" aria-selected="false">
-                ⭐ 我的收藏
-            </button>
+<!-- ================= Top bar ================= -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand-row">
+      <div class="brand"><span class="brand-badge" aria-hidden="true">P</span> PubMed 文献研究助手 <small>v2 预览版 · 数据来源 PubMed / NCBI</small></div>
+      <div class="top-actions">
+        <nav class="tabs" role="tablist" aria-label="视图切换">
+          <button class="tab-btn" id="tab-search" role="tab" aria-selected="true" data-view="search">搜索文献</button>
+          <button class="tab-btn" id="tab-favorites" role="tab" aria-selected="false" data-view="favorites">我的收藏 <span id="fav-count-badge"></span></button>
         </nav>
+        <button class="icon-btn" id="density-btn" type="button" aria-label="切换显示密度">密度：舒适</button>
+        <button class="icon-btn" id="theme-btn" type="button" aria-label="切换深色模式">深色模式</button>
+      </div>
+    </div>
+    <form class="search-row" id="search-form" role="search">
+      <label class="sr-only" for="search-input">搜索关键词</label>
+      <div class="search-wrap">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" id="search-input" placeholder="输入中文或英文关键词，例如：糖尿病、metformin、COVID-19 treatment…" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="search-btn" type="submit">搜索</button>
+    </form>
+    <div class="chips" aria-label="检索式模板">
+      <span class="chip-label">点选把字段限定加到关键词末尾：</span>
+      <button class="chip" type="button" data-template="[tiab]">标题/摘要 [tiab]</button>
+      <button class="chip" type="button" data-template="[MeSH Terms]">MeSH 主题词 [MeSH Terms]</button>
+      <button class="chip" type="button" data-template="[au]">作者 [au]</button>
+      <button class="chip" type="button" data-template="[jour]">期刊 [jour]</button>
+      <span class="chip-label">支持直接输入 AND / OR / NOT 和字段标签，将原样传给 PubMed</span>
+    </div>
+    <div class="translation-info" id="translation-info" role="status"></div>
+  </div>
+</header>
 
-        <!-- Search Panel -->
-        <div id="search-panel" class="panel active" role="tabpanel" aria-labelledby="tab-search">
-            <!-- Filter Toggle -->
-            <div class="filter-toggle">
-                <button id="filter-toggle-btn" class="filter-toggle-btn" type="button">
-                    🔧 显示筛选条件
-                </button>
-            </div>
+<div class="layout">
+  <!-- ================= Sidebar filters ================= -->
+  <button class="btn filter-toggle-btn" id="filter-toggle-btn" type="button" aria-expanded="false">显示筛选条件</button>
+  <aside class="sidebar" id="sidebar" aria-label="筛选条件">
+    <h2>筛选条件</h2>
 
-            <!-- Filter Panel -->
-            <div id="filter-panel" class="filter-panel">
-                <div class="filter-panel-title">🎯 高级筛选</div>
-                <div class="filter-grid">
-                    <div class="filter-group">
-                        <label for="filter-year-from">起始年份</label>
-                        <input type="number" id="filter-year-from" placeholder="例如：2020" min="1900" max="2026">
-                    </div>
-                    <div class="filter-group">
-                        <label for="filter-year-to">结束年份</label>
-                        <input type="number" id="filter-year-to" placeholder="例如：2024" min="1900" max="2026">
-                    </div>
-                    <div class="filter-group">
-                        <label for="filter-author">作者姓名</label>
-                        <input type="text" id="filter-author" placeholder="例如：Smith">
-                    </div>
-                    <div class="filter-group">
-                        <label for="filter-journal">期刊名称</label>
-                        <input type="text" id="filter-journal" placeholder="例如：Nature">
-                    </div>
-                </div>
-                <div class="filter-grid">
-                    <div class="filter-group" style="grid-column: 1 / -1;">
-                        <label for="filter-limit">每页显示数量</label>
-                        <select id="filter-limit">
-                            <option value="10" selected>10 篇</option>
-                            <option value="20">20 篇</option>
-                            <option value="50">50 篇</option>
-                            <option value="100">100 篇</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="filter-actions">
-                    <button id="filter-apply-btn" class="filter-btn filter-btn-apply" type="button">应用筛选</button>
-                    <button id="filter-clear-btn" class="filter-btn filter-btn-clear" type="button">清空筛选</button>
-                </div>
-            </div>
+    <fieldset class="filter-group">
+      <legend class="filter-title">文献类型 Publication Type</legend>
+      <div id="pubtype-list">
+        <label class="check-row"><input type="checkbox" class="f-pubtype" value="Review">综述 Review</label>
+        <label class="check-row"><input type="checkbox" class="f-pubtype" value="Systematic Review">系统综述 Systematic Review</label>
+        <label class="check-row"><input type="checkbox" class="f-pubtype" value="Meta-Analysis">荟萃分析 Meta-Analysis</label>
+        <label class="check-row"><input type="checkbox" class="f-pubtype" value="Randomized Controlled Trial">随机对照试验 RCT</label>
+        <label class="check-row"><input type="checkbox" class="f-pubtype" value="Clinical Trial">临床试验 Clinical Trial</label>
+        <label class="check-row"><input type="checkbox" class="f-pubtype" value="Guideline">指南 Guideline</label>
+        <label class="check-row"><input type="checkbox" class="f-pubtype" value="Case Reports">病例报告 Case Reports</label>
+      </div>
+    </fieldset>
 
-            <!-- Search Card -->
-            <div class="search-card">
-                <div class="search-row">
-                    <div class="search-input-wrapper">
-                        <span class="search-icon">🔍</span>
-                        <input
-                            type="text"
-                            id="search-input"
-                            class="search-input"
-                            placeholder="输入中文或英文关键词，例如：糖尿病、COVID-19、癌症治疗..."
-                            autocomplete="off"
-                        >
-                    </div>
-                    <button id="search-btn" class="search-btn" type="button">
-                        搜索
-                    </button>
-                </div>
-                <div id="translation-info"></div>
-            </div>
-
-            <!-- Loading -->
-            <div id="loading" style="display: none; text-align: center; color: var(--color-text-muted); padding: 16px; font-size: var(--font-size-sm);">
-                正在搜索中，请稍候...
-            </div>
-
-            <!-- Error -->
-            <div id="error-container"></div>
-
-            <!-- Results Info -->
-            <div id="results-info"></div>
-
-            <!-- Results List -->
-            <div id="results-list" class="results-list"></div>
-
-            <!-- Pagination -->
-            <div id="pagination" class="pagination"></div>
-        </div>
-
-        <!-- Favorites Panel -->
-        <div id="favorites-panel" class="panel" role="tabpanel" aria-labelledby="tab-favorites">
-            <div class="favorites-header">
-                <div class="favorites-count">
-                    📚 收藏数量：<span id="fav-count" class="count-num">0</span>
-                </div>
-                <button id="export-btn" class="btn-export" type="button">
-                    📥 导出收藏
-                </button>
-            </div>
-            <div id="favorites-list" class="results-list"></div>
-        </div>
+    <div class="filter-group">
+      <span class="filter-title" id="fft-label">全文可得性</span>
+      <label class="check-row"><input type="checkbox" id="f-freefulltext">仅看免费全文 Free full text</label>
     </div>
 
-    <script type="module" src="/src/main.ts"></script>
+    <fieldset class="filter-group">
+      <legend class="filter-title">发表时间</legend>
+      <label class="radio-row"><input type="radio" name="f-range" value="all" checked>全部时间</label>
+      <label class="radio-row"><input type="radio" name="f-range" value="1">近 1 年</label>
+      <label class="radio-row"><input type="radio" name="f-range" value="5">近 5 年</label>
+      <label class="radio-row"><input type="radio" name="f-range" value="10">近 10 年</label>
+      <label class="radio-row"><input type="radio" name="f-range" value="custom">自定义年份</label>
+      <div class="year-row" style="margin-top:6px">
+        <label class="sr-only" for="f-year-from">起始年份</label>
+        <input class="filter-input" type="number" id="f-year-from" placeholder="起始年" min="1900" max="2100">
+        <span aria-hidden="true">–</span>
+        <label class="sr-only" for="f-year-to">结束年份</label>
+        <input class="filter-input" type="number" id="f-year-to" placeholder="结束年" min="1900" max="2100">
+      </div>
+    </fieldset>
+
+    <fieldset class="filter-group">
+      <legend class="filter-title">语言 Language</legend>
+      <label class="radio-row"><input type="radio" name="f-lang" value="" checked>全部语言</label>
+      <label class="radio-row"><input type="radio" name="f-lang" value="english">仅英文 English</label>
+      <label class="radio-row"><input type="radio" name="f-lang" value="chinese">仅中文 Chinese</label>
+    </fieldset>
+
+    <fieldset class="filter-group">
+      <legend class="filter-title">研究对象 Species</legend>
+      <label class="radio-row"><input type="radio" name="f-species" value="" checked>全部</label>
+      <label class="radio-row"><input type="radio" name="f-species" value="humans">人类 Humans</label>
+      <label class="radio-row"><input type="radio" name="f-species" value="animals">动物 Animals</label>
+    </fieldset>
+
+    <div class="filter-group">
+      <span class="filter-title">作者 / 期刊</span>
+      <label class="sr-only" for="f-author">作者姓名</label>
+      <input class="filter-input" type="text" id="f-author" placeholder="作者，例如 Smith J">
+      <label class="sr-only" for="f-journal">期刊名称</label>
+      <input class="filter-input" type="text" id="f-journal" placeholder="期刊，例如 Lancet、Nature">
+    </div>
+
+    <div class="sidebar-actions">
+      <button class="btn btn-primary btn-small" id="filter-apply" type="button" style="flex:1">应用筛选</button>
+      <button class="btn btn-small" id="filter-clear" type="button" style="flex:1">清空</button>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-title">搜索历史</span>
+      <div class="history-list" id="history-list"></div>
+      <button class="btn btn-ghost btn-small" id="history-clear" type="button" style="margin-top:4px">清空历史</button>
+    </div>
+  </aside>
+
+  <!-- ================= Main ================= -->
+  <main>
+    <!-- Search view -->
+    <section id="view-search" aria-label="搜索结果">
+      <div class="results-head">
+        <h2>搜索结果</h2>
+        <span class="results-count" id="results-count" role="status"></span>
+        <div class="results-tools">
+          <label for="sort-select">排序</label>
+          <select id="sort-select">
+            <option value="relevance" selected>相关性</option>
+            <option value="pub_date">最新发表</option>
+          </select>
+          <label for="page-size">每页</label>
+          <select id="page-size">
+            <option value="10" selected>10 篇</option>
+            <option value="20">20 篇</option>
+            <option value="50">50 篇</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="query-translation" id="query-translation"></div>
+
+      <div class="batch-bar" id="batch-bar">
+        <label class="check-row" style="padding:0"><input type="checkbox" id="select-all">全选本页</label>
+        <span id="selected-count">已选 0 篇</span>
+        <button class="btn btn-small" id="batch-fav" type="button">收藏所选</button>
+        <span>导出所选：</span>
+        <button class="btn btn-small" data-export-selected="txt" type="button">TXT</button>
+        <button class="btn btn-small" data-export-selected="bib" type="button">BibTeX</button>
+        <button class="btn btn-small" data-export-selected="ris" type="button">RIS</button>
+        <button class="btn btn-small" data-export-selected="csv" type="button">CSV</button>
+      </div>
+
+      <div id="status-area">
+        <div class="status-box" id="welcome-box">
+          <div class="status-title">输入关键词开始检索</div>
+          <div>支持中文（自动翻译为英文检索）、英文、PubMed 检索式（AND / OR / NOT、[tiab]、[MeSH Terms] 等）。<br>左侧可按文献类型、免费全文、时间、语言、研究对象、作者和期刊筛选。</div>
+        </div>
+      </div>
+      <div class="skeleton" id="skeleton" style="display:none" aria-hidden="true"></div>
+      <div class="results-list" id="results-list"></div>
+
+      <nav class="pagination" id="pagination" aria-label="分页">
+        <button class="btn btn-small" id="page-prev" type="button">上一页</button>
+        <span class="page-info" id="page-info"></span>
+        <button class="btn btn-small" id="page-next" type="button">下一页</button>
+      </nav>
+    </section>
+
+    <!-- Favorites view -->
+    <section id="view-favorites" aria-label="我的收藏" hidden>
+      <div class="results-head">
+        <h2>我的收藏</h2>
+        <span class="results-count" id="fav-count-text"></span>
+      </div>
+      <p style="color:var(--text-2);font-size:13.5px;margin:6px 0 0">收藏保存在本机浏览器（localStorage），不上传。点卡片上的「标签/备注」可编辑。</p>
+      <div class="fav-tools">
+        <label class="sr-only" for="fav-search">在收藏中搜索</label>
+        <input class="filter-input" type="text" id="fav-search" placeholder="在收藏中搜索标题 / 作者 / 期刊…">
+        <label class="sr-only" for="fav-tag-filter">按标签筛选</label>
+        <select class="filter-input" id="fav-tag-filter" style="flex:0 1 200px"><option value="">全部标签</option></select>
+      </div>
+      <div class="export-bar">
+        <span>导出全部收藏：</span>
+        <button class="btn btn-small" data-export-fav="txt" type="button">TXT</button>
+        <button class="btn btn-small" data-export-fav="bib" type="button">BibTeX</button>
+        <button class="btn btn-small" data-export-fav="ris" type="button">RIS</button>
+        <button class="btn btn-small" data-export-fav="csv" type="button">CSV</button>
+      </div>
+      <div class="export-bar" style="margin-top:8px">
+        <span>跨设备备份：</span>
+        <button class="btn btn-small" id="fav-backup-export" type="button">导出备份 (JSON)</button>
+        <button class="btn btn-small" id="fav-backup-import" type="button">导入备份</button>
+        <input type="file" id="fav-backup-file" accept=".json,application/json" hidden>
+        <span style="font-size:12.5px">导出的是可导回的完整备份（含标签/备注）；导入按 PMID 合并，只新增、不覆盖、不删除本地收藏。</span>
+      </div>
+      <div class="results-list" id="favorites-list"></div>
+      <div class="status-box" id="fav-empty" style="display:none">
+        <div class="status-title">还没有收藏</div>
+        <div>在搜索结果中点「收藏」，文献会出现在这里，并可加标签和备注。</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="site">
+  数据来源：NCBI PubMed E-utilities（直连官方接口，无第三方代理）· 本工具仅供文献检索参考，不构成医疗建议 · v2 预览版
+</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ================================================================
+   PubMed 文献研究助手 v2 — single-file app
+   Sections: utils / state / storage / api / query builder /
+             search flow / rendering / abstract / citations /
+             export / favorites / ui wiring
+   All API text is escaped (escapeHtml) before any innerHTML use,
+   or inserted via textContent.
+   ================================================================ */
+
+/* ---------------- Utils ---------------- */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+function escapeHtml(str){
+  return String(str == null ? "" : str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function hasCJK(text){ return /[\u3400-\u9fff\uf900-\ufaff]/.test(text || ""); }
+function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+let toastTimer = null;
+function toast(msg){
+  const el = $("#toast"); el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>el.classList.remove("show"), 2400);
+}
+async function copyText(text, okMsg){
+  try{ await navigator.clipboard.writeText(text); toast(okMsg || "已复制"); }
+  catch(e){
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+    ta.select(); try{ document.execCommand("copy"); toast(okMsg || "已复制"); }catch(_){ toast("复制失败，请手动复制"); }
+    ta.remove();
+  }
+}
+function download(filename, content, mime){
+  const blob = new Blob([content], {type: (mime||"text/plain") + ";charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1500);
+}
+function todayStamp(){ const d=new Date(); return d.toISOString().slice(0,10); }
+
+/* ---------------- Config / State ---------------- */
+const EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
+const TOOL = "pubmed-assistant-v2";
+const state = {
+  query: "",            // final EN query sent to PubMed (without filter suffixes stored separately)
+  baseQuery: "",        // query before filters (for history display we store full)
+  translatedFrom: "", translatedTo: "",
+  page: 1, pageSize: 10, total: 0, sort: "relevance",
+  articles: [],         // normalized articles on current page
+  byPmid: new Map(),    // pmid -> article (results + favorites cache)
+  selected: new Set(),  // selected pmids on current page
+  queryTranslation: "",
+  highlightTerms: [],
+  loading: false
+};
+
+/* ---------------- Storage: favorites + history ---------------- */
+const FAV_KEY = "pubmed-v2-favorites";
+const HIS_KEY = "pubmed-v2-history";
+function loadFavorites(){ try{ return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); }catch(e){ return []; } }
+function saveFavorites(list){ localStorage.setItem(FAV_KEY, JSON.stringify(list)); }
+function isFav(pmid){ return loadFavorites().some(f => f.pmid === pmid); }
+function loadHistory(){ try{ return JSON.parse(localStorage.getItem(HIS_KEY) || "[]"); }catch(e){ return []; } }
+function pushHistory(q){
+  if(!q) return;
+  let h = loadHistory().filter(x => x !== q); h.unshift(q); h = h.slice(0, 12);
+  localStorage.setItem(HIS_KEY, JSON.stringify(h)); renderHistory();
+}
+
+/* ---------------- API ----------------
+ * Prefer the same-origin /api/* aggregation worker (server runs translation
+ * + NCBI calls; see _worker.js). Every path falls back to the original direct
+ * browser calls, so the page still works as a bare static file. */
+async function fetchWithTimeout(url, options, ms){
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms || 15000);
+  try{
+    return await fetch(url, Object.assign({}, options || {}, {signal: ctrl.signal}));
+  }finally{
+    clearTimeout(timer);
+  }
+}
+async function eutils(path, params){
+  const qs = new URLSearchParams(Object.assign({}, params, {tool: TOOL}));
+  const res = await fetch(EUTILS + "/" + path + "?" + qs.toString());
+  if(res.status === 429) { const err = new Error("RATE_LIMIT"); err.code = "RATE_LIMIT"; throw err; }
+  if(!res.ok){ const err = new Error("HTTP " + res.status); err.code = "HTTP"; throw err; }
+  return res;
+}
+
+/* Translation cache: in-memory + localStorage, keyed by sl/tl/mode + text hash */
+const TR_CACHE_KEY = "pubmed-v2-trcache";
+const TR_CACHE_MAX = 100;
+let trCacheMem = null;
+function trCacheLoad(){
+  if(trCacheMem) return trCacheMem;
+  try{ trCacheMem = JSON.parse(localStorage.getItem(TR_CACHE_KEY) || "{}") || {}; }
+  catch(e){ trCacheMem = {}; }
+  if(typeof trCacheMem !== "object" || Array.isArray(trCacheMem)) trCacheMem = {};
+  return trCacheMem;
+}
+function trCacheKey(text, sl, tl, mode){
+  let h = 0x811c9dc5; // FNV-1a
+  for(let i = 0; i < text.length; i++){ h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return sl + "|" + tl + "|" + mode + "|" + (h >>> 0).toString(16) + "|" + text.length;
+}
+function trCacheGet(text, sl, tl, mode){
+  const cache = trCacheLoad();
+  const v = cache[trCacheKey(text, sl, tl, mode)];
+  return typeof v === "string" ? v : null;
+}
+function trCacheSet(text, sl, tl, mode, translated){
+  try{
+    const cache = trCacheLoad();
+    cache[trCacheKey(text, sl, tl, mode)] = translated;
+    const keys = Object.keys(cache);
+    if(keys.length > TR_CACHE_MAX) keys.slice(0, keys.length - TR_CACHE_MAX).forEach(k => delete cache[k]);
+    localStorage.setItem(TR_CACHE_KEY, JSON.stringify(cache));
+  }catch(e){ /* storage full/blocked: caching is best-effort */ }
+}
+
+async function translateText(text, sl, tl, mode){
+  mode = mode || "generic";
+  if(!text) return "";
+  const cached = trCacheGet(text, sl, tl, mode);
+  if(cached != null) return cached;
+  // 1) Server-side /api/translate (Agnes LLM first, Google on the server)
+  try{
+    const res = await fetchWithTimeout("/api/translate", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({text, sl, tl, mode})
+    }, 15000);
+    if(!res.ok) throw new Error("api translate HTTP " + res.status);
+    const data = await res.json();
+    if(data && data.text){
+      trCacheSet(text, sl, tl, mode, data.text);
+      return data.text;
+    }
+    throw new Error("api translate bad response");
+  }catch(e){ /* fall back to direct Google Translate below */ }
+  // 2) Direct Google Translate (original path), short timeout so a blocked
+  //    endpoint (e.g. mainland China) fails fast instead of hanging the search
+  const url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=" + encodeURIComponent(sl) +
+              "&tl=" + encodeURIComponent(tl) + "&dt=t&q=" + encodeURIComponent(text);
+  const res = await fetchWithTimeout(url, {}, 3500);
+  if(!res.ok) throw new Error("translate failed");
+  const data = await res.json();
+  if(!data || !Array.isArray(data[0])) throw new Error("translate bad response");
+  const out = data[0].map(seg => seg[0] || "").join("");
+  trCacheSet(text, sl, tl, mode, out);
+  return out;
+}
+async function esearch(term, retmax, retstart, sort){
+  const res = await eutils("esearch.fcgi", {db:"pubmed", term, retmax, retstart, retmode:"json", sort});
+  const data = await res.json();
+  const r = data && data.esearchresult;
+  if(!r) throw new Error("BAD_RESPONSE");
+  return { ids: r.idlist || [], count: parseInt(r.count, 10) || 0, translation: r.querytranslation || "" };
+}
+async function esummary(ids){
+  if(!ids.length) return {};
+  const res = await eutils("esummary.fcgi", {db:"pubmed", id: ids.join(","), retmode:"json", version:"2.0"});
+  const data = await res.json();
+  return (data && data.result) || {};
+}
+/* Aggregated search via the worker: one round trip for esearch + esummary */
+async function apiSearch(term, retmax, retstart, sort){
+  const qs = new URLSearchParams({term, retmax, retstart, sort});
+  const res = await fetchWithTimeout("/api/search?" + qs.toString(), {}, 20000);
+  if(res.status === 429){ const err = new Error("RATE_LIMIT"); err.code = "RATE_LIMIT"; throw err; }
+  if(!res.ok){ const err = new Error("api search HTTP " + res.status); err.code = "HTTP"; throw err; }
+  const data = await res.json();
+  if(!data || !Array.isArray(data.ids) || typeof data.count !== "number") throw new Error("BAD_RESPONSE");
+  return {
+    found: { ids: data.ids, count: data.count, translation: data.translation || "" },
+    result: data.result || {}
+  };
+}
+async function efetchXml(pmid){
+  // 1) Server-side /api/abstract (edge-cached efetch)
+  try{
+    const res = await fetchWithTimeout("/api/abstract?pmid=" + encodeURIComponent(pmid), {}, 15000);
+    if(!res.ok) throw new Error("api abstract HTTP " + res.status);
+    return await res.text();
+  }catch(e){ /* fall back to direct efetch below */ }
+  // 2) Direct efetch (original path)
+  const res = await eutils("efetch.fcgi", {db:"pubmed", id: pmid, retmode:"xml"});
+  return res.text();
+}
+
+/* ---------------- Normalize esummary -> article ---------------- */
+function normalizeArticle(raw){
+  if(!raw || !raw.uid) return null;
+  const ids = {};
+  (raw.articleids || []).forEach(a => { ids[a.idtype] = a.value; });
+  let doi = ids.doi || "";
+  if(!doi && raw.elocationid && /^doi:/i.test(raw.elocationid)) doi = raw.elocationid.replace(/^doi:\s*/i, "");
+  let pmc = ids.pmc || "";
+  if(pmc && !/^PMC/i.test(pmc)) pmc = "PMC" + pmc;
+  const yearMatch = String(raw.pubdate || raw.sortpubdate || "").match(/\d{4}/);
+  return {
+    pmid: String(raw.uid),
+    title: (raw.title || "").replace(/\s+/g, " ").trim(),
+    authors: (raw.authors || []).map(a => a.name).filter(Boolean),
+    journal: raw.fulljournalname || raw.source || "",
+    journalAbbr: raw.source || "",
+    pubdate: raw.pubdate || "",
+    year: yearMatch ? yearMatch[0] : "",
+    volume: raw.volume || "", issue: raw.issue || "", pages: raw.pages || "",
+    pubtype: raw.pubtype || [],
+    lang: raw.lang || [],
+    doi, pmc,
+    hasAbstract: (raw.attributes || []).includes("Has Abstract")
+  };
+}
+function articleLinks(a){
+  const links = [{label:"PubMed 原页", href:"https://pubmed.ncbi.nlm.nih.gov/" + a.pmid + "/"}];
+  if(a.doi) links.push({label:"DOI 直达", href:"https://doi.org/" + a.doi});
+  if(a.pmc) links.push({label:"PMC 免费全文", href:"https://pmc.ncbi.nlm.nih.gov/articles/" + a.pmc + "/", free:true});
+  return links;
+}
+
+/* ---------------- Query builder (filters -> term suffixes) ---------------- */
+function readFilters(){
+  return {
+    pubtypes: $$(".f-pubtype").filter(c => c.checked).map(c => c.value),
+    freeFullText: $("#f-freefulltext").checked,
+    range: ($('input[name="f-range"]:checked') || {}).value || "all",
+    yearFrom: $("#f-year-from").value.trim(),
+    yearTo: $("#f-year-to").value.trim(),
+    lang: ($('input[name="f-lang"]:checked') || {}).value || "",
+    species: ($('input[name="f-species"]:checked') || {}).value || "",
+    author: $("#f-author").value.trim(),
+    journal: $("#f-journal").value.trim()
+  };
+}
+function buildTerm(baseQuery, f){
+  const parts = [];
+  const q = (baseQuery || "").trim();
+  if(q) parts.push("(" + q + ")");
+  if(f.pubtypes.length){
+    parts.push("(" + f.pubtypes.map(t => '"' + t + '"[pt]').join(" OR ") + ")");
+  }
+  if(f.freeFullText) parts.push('"free full text"[sb]');
+  // dates
+  let from = "", to = "";
+  const nowY = new Date().getFullYear();
+  if(f.range === "1" || f.range === "5" || f.range === "10"){
+    from = String(nowY - parseInt(f.range, 10)); to = String(nowY);
+  } else if(f.range === "custom" || f.yearFrom || f.yearTo){
+    from = f.yearFrom; to = f.yearTo;
+  }
+  if(from || to){
+    const fmt = y => y ? y + "/01/01" : "1900/01/01";
+    const fmtTo = y => y ? y + "/12/31" : "2100/12/31";
+    parts.push('("' + fmt(from) + '"[dp] : "' + fmtTo(to) + '"[dp])');
+  }
+  if(f.lang) parts.push(f.lang + "[lang]");
+  if(f.species) parts.push(f.species + "[mh]");
+  if(f.author) parts.push(f.author + "[au]");
+  if(f.journal) parts.push(f.journal + "[jour]");
+  return parts.join(" AND ");
+}
+
+/* ---------------- Highlight ---------------- */
+function highlightHtml(text, terms){
+  let html = escapeHtml(text);
+  const clean = (terms || []).map(t => t.trim()).filter(t => t.length > 1)
+    .sort((a,b) => b.length - a.length);
+  for(const t of clean){
+    const esc = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    try{ html = html.replace(new RegExp("(" + esc + ")", "gi"), "<mark>$1</mark>"); }catch(e){ /* ignore */ }
+  }
+  return html;
+}
+function termsFromQuery(q){
+  return (q || "").replace(/"[^"]*"/g, m => m.replace(/"/g, ""))
+    .replace(/\[[^\]]*\]/g, " ").replace(/\b(AND|OR|NOT)\b/gi, " ")
+    .split(/[\s,;()]+/).filter(Boolean);
+}
+
+/* ---------------- Status / skeleton ---------------- */
+function showStatus(kind, title, msg){
+  const area = $("#status-area");
+  if(kind === "hide"){ area.innerHTML = ""; return; }
+  const box = document.createElement("div");
+  box.className = "status-box" + (kind === "error" ? " error" : "");
+  const t = document.createElement("div"); t.className = "status-title"; t.textContent = title;
+  const m = document.createElement("div"); m.textContent = msg || "";
+  box.append(t, m); area.innerHTML = ""; area.appendChild(box);
+}
+function showSkeleton(on){
+  const sk = $("#skeleton");
+  if(on){
+    sk.innerHTML = "";
+    for(let i=0;i<4;i++){
+      const c = document.createElement("div"); c.className = "skel-card";
+      c.innerHTML = '<div class="skel-line" style="width:82%"></div><div class="skel-line" style="width:55%"></div><div class="skel-line" style="width:38%"></div>';
+      sk.appendChild(c);
+    }
+    sk.style.display = "flex";
+  } else { sk.style.display = "none"; sk.innerHTML = ""; }
+}
+
+/* ---------------- Search flow ---------------- */
+async function runSearch(page){
+  const rawInput = $("#search-input").value.trim();
+  if(!rawInput){ showStatus("info", "请输入关键词", "关键词不能为空。支持中文、英文或 PubMed 检索式。"); return; }
+  state.page = page || 1;
+  state.loading = true;
+  $("#search-btn").disabled = true;
+  showSkeleton(true); showStatus("hide"); $("#results-list").innerHTML = "";
+  $("#pagination").classList.remove("show"); $("#batch-bar").classList.remove("show");
+  $("#query-translation").classList.remove("show");
+
+  try{
+    // 1) Chinese -> English for plain keyword searches (skip if user typed field tags / boolean syntax)
+    let baseQuery = rawInput;
+    state.translatedFrom = ""; state.translatedTo = "";
+    const looksAdvanced = /\[[^\]]+\]|\b(AND|OR|NOT)\b/.test(rawInput);
+    const tInfo = $("#translation-info");
+    tInfo.classList.remove("show"); tInfo.textContent = "";
+    if(hasCJK(rawInput) && !looksAdvanced){
+      try{
+        const en = await translateText(rawInput, "zh-CN", "en", "query");
+        if(en && en.trim() && en.trim().toLowerCase() !== rawInput.toLowerCase()){
+          baseQuery = en.trim();
+          state.translatedFrom = rawInput; state.translatedTo = baseQuery;
+          tInfo.innerHTML = "中文关键词已翻译为英文检索：<code></code>（高级检索式含字段标签时不自动翻译）";
+          tInfo.querySelector("code").textContent = baseQuery;
+          tInfo.classList.add("show");
+        }
+      }catch(e){ /* translation failure: fall back to original query */ }
+    }
+    state.baseQuery = baseQuery;
+    state.highlightTerms = termsFromQuery(baseQuery);
+
+    // 2) Build full term with filters
+    const term = buildTerm(baseQuery, readFilters());
+    state.query = term;
+
+    // 3) Aggregated /api/search first (server runs esearch + esummary in one
+    //    round trip); on any failure except rate limiting, fall back to the
+    //    original direct esearch + esummary flow.
+    const retstart = (state.page - 1) * state.pageSize;
+    let found, summary = null;
+    try{
+      const agg = await apiSearch(term, state.pageSize, retstart, state.sort);
+      found = agg.found; summary = agg.result;
+    }catch(apiErr){
+      if(apiErr && apiErr.code === "RATE_LIMIT") throw apiErr;
+      found = await esearch(term, state.pageSize, retstart, state.sort);
+    }
+    state.total = found.count;
+    state.queryTranslation = found.translation;
+    state.selected = new Set();
+
+    if(found.count === 0 || found.ids.length === 0){
+      showSkeleton(false);
+      showStatus("info", "没有找到结果", "换个关键词、放宽时间范围，或去掉部分筛选条件再试。中文关键词会自动翻译，英文原词有时更准。");
+      $("#results-count").textContent = "共 0 篇";
+      renderQueryTranslation();
+      pushHistory(rawInput);
+      return;
+    }
+    if(summary === null) summary = await esummary(found.ids);
+    state.articles = found.ids.map(id => normalizeArticle(summary[id])).filter(Boolean);
+    state.articles.forEach(a => state.byPmid.set(a.pmid, a));
+    showSkeleton(false);
+    renderResults();
+    renderQueryTranslation();
+    pushHistory(rawInput);
+    window.scrollTo({top: 0, behavior: "smooth"});
+  }catch(err){
+    showSkeleton(false);
+    if(err && err.code === "RATE_LIMIT"){
+      showStatus("error", "请求过于频繁（PubMed 限流）", "NCBI 对无 Key 访问有限速，请等几秒后点「搜索」重试，不要连续快速翻页。");
+    } else {
+      showStatus("error", "网络请求失败", "无法连接 PubMed 官方接口，请检查网络后重试。详情：" + (err && err.message ? err.message : String(err)));
+    }
+  }finally{
+    state.loading = false;
+    $("#search-btn").disabled = false;
+  }
+}
+function renderQueryTranslation(){
+  const box = $("#query-translation");
+  if(!state.queryTranslation){ box.classList.remove("show"); box.innerHTML = ""; return; }
+  box.innerHTML = "";
+  const label = document.createElement("strong"); label.textContent = "PubMed 实际执行的检索式：";
+  const code = document.createElement("code"); code.textContent = state.queryTranslation;
+  const btn = document.createElement("button");
+  btn.className = "btn btn-ghost btn-small"; btn.type = "button"; btn.textContent = "复制检索式";
+  btn.addEventListener("click", () => copyText(state.queryTranslation, "检索式已复制"));
+  box.append(label, document.createTextNode(" "), code, document.createTextNode(" "), btn);
+  box.classList.add("show");
+}
+
+/* ---------------- Citations ---------------- */
+function vancouverAuthors(authors, max){
+  // esummary names are already "Surname Initials" form, e.g. "Smith J"
+  const list = (authors || []).slice(0, max || 6);
+  let s = list.join(", ");
+  if((authors || []).length > (max || 6)) s += ", et al";
+  return s;
+}
+function citationVancouver(a){
+  let s = vancouverAuthors(a.authors) + ". " + a.title + " " + (a.journalAbbr || a.journal) + ". " + (a.year || "") + ";";
+  if(a.volume) s += a.volume;
+  if(a.issue) s += "(" + a.issue + ")";
+  if(a.pages) s += ":" + a.pages;
+  s += ".";
+  if(a.doi) s += " doi: " + a.doi + ".";
+  s += " PMID: " + a.pmid + ".";
+  return s.replace(/\s+/g, " ").trim();
+}
+function apaAuthor(name){
+  // "Smith JA" -> "Smith, J. A." ; fallback: return as-is
+  const m = String(name || "").trim().match(/^(.+?)\s+([A-Z]{1,4})$/);
+  if(!m) return name;
+  return m[1] + ", " + m[2].split("").map(c => c + ".").join(" ");
+}
+function citationAPA(a){
+  const auth = (a.authors || []).map(apaAuthor);
+  let authorStr = auth.length > 1 ? auth.slice(0, -1).join(", ") + ", & " + auth[auth.length - 1] : (auth[0] || "");
+  if((a.authors || []).length > 7) authorStr = auth.slice(0, 7).join(", ") + ", … " + auth[auth.length - 1];
+  let s = authorStr + " (" + (a.year || "n.d.") + "). " + a.title + " " + (a.journal || a.journalAbbr);
+  if(a.volume) s += ", " + a.volume;
+  if(a.issue) s += "(" + a.issue + ")";
+  if(a.pages) s += ", " + a.pages.replace("-", "–");
+  s += ".";
+  if(a.doi) s += " https://doi.org/" + a.doi;
+  return s.replace(/\s+/g, " ").trim();
+}
+
+/* ---------------- Export (txt / bib / ris / csv) ---------------- */
+function exportTxt(list){
+  return list.map((a, i) =>
+    (i + 1) + ". " + a.title + "\n" +
+    "   作者：" + a.authors.join(", ") + "\n" +
+    "   期刊：" + (a.journal || a.journalAbbr) + " · " + (a.pubdate || a.year) +
+    (a.volume ? " · " + a.volume : "") + (a.issue ? "(" + a.issue + ")" : "") + (a.pages ? ":" + a.pages : "") + "\n" +
+    "   PMID: " + a.pmid + (a.doi ? " · DOI: " + a.doi : "") + (a.pmc ? " · " + a.pmc + "（免费全文）" : "") + "\n" +
+    "   PubMed: https://pubmed.ncbi.nlm.nih.gov/" + a.pmid + "/"
+  ).join("\n\n") + "\n";
+}
+function bibKey(a){
+  const first = (a.authors[0] || "anon").split(/\s+/)[0].replace(/[^A-Za-z0-9]/g, "") || "anon";
+  return first.toLowerCase() + (a.year || "") + "_" + a.pmid;
+}
+function exportBib(list){
+  return list.map(a => {
+    const fields = [
+      ["title", a.title], ["author", a.authors.join(" and ")],
+      ["journal", a.journal || a.journalAbbr], ["year", a.year],
+      ["volume", a.volume], ["number", a.issue], ["pages", a.pages],
+      ["doi", a.doi], ["pmid", a.pmid],
+      ["url", "https://pubmed.ncbi.nlm.nih.gov/" + a.pmid + "/"]
+    ].filter(([k, v]) => v);
+    return "@article{" + bibKey(a) + ",\n" + fields.map(([k, v]) => "  " + k + " = {" + String(v).replace(/[{}]/g, "") + "}").join(",\n") + "\n}";
+  }).join("\n\n") + "\n";
+}
+function exportRis(list){
+  return list.map(a => {
+    const lines = ["TY  - JOUR", "TI  - " + a.title];
+    a.authors.forEach(x => lines.push("AU  - " + x));
+    if(a.journal || a.journalAbbr) lines.push("JO  - " + (a.journal || a.journalAbbr));
+    if(a.journalAbbr) lines.push("JA  - " + a.journalAbbr);
+    if(a.year) lines.push("Y1  - " + a.year);
+    if(a.pubdate) lines.push("DA  - " + a.pubdate);
+    if(a.volume) lines.push("VL  - " + a.volume);
+    if(a.issue) lines.push("IS  - " + a.issue);
+    if(a.pages){
+      const p = a.pages.split("-");
+      lines.push("SP  - " + p[0]); if(p[1]) lines.push("EP  - " + p[1]);
+    }
+    if(a.doi) lines.push("DO  - " + a.doi);
+    lines.push("AN  - PMID:" + a.pmid);
+    lines.push("UR  - https://pubmed.ncbi.nlm.nih.gov/" + a.pmid + "/");
+    (a.pubtype || []).forEach(t => lines.push("M3  - " + t));
+    lines.push("ER  - ");
+    return lines.join("\n");
+  }).join("\n\n") + "\n";
+}
+function csvCell(v){ return '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"'; }
+function exportCsv(list){
+  const head = ["PMID","Title","Authors","Journal","Year","Volume","Issue","Pages","DOI","PMC","PublicationType","Language","PubMedURL"];
+  const rows = list.map(a => [a.pmid, a.title, a.authors.join("; "), a.journal || a.journalAbbr, a.year, a.volume, a.issue, a.pages,
+    a.doi, a.pmc, (a.pubtype || []).join("; "), (a.lang || []).join("; "), "https://pubmed.ncbi.nlm.nih.gov/" + a.pmid + "/"].map(csvCell).join(","));
+  return head.map(csvCell).join(",") + "\n" + rows.join("\n") + "\n";
+}
+const EXPORTERS = {
+  txt: {fn: () => "pubmed-export-" + todayStamp() + ".txt", make: exportTxt, mime: "text/plain"},
+  bib: {fn: () => "pubmed-export-" + todayStamp() + ".bib", make: exportBib, mime: "application/x-bibtex"},
+  ris: {fn: () => "pubmed-export-" + todayStamp() + ".ris", make: exportRis, mime: "application/x-research-info-systems"},
+  csv: {fn: () => "pubmed-export-" + todayStamp() + ".csv", make: exportCsv, mime: "text/csv"}
+};
+function doExport(list, format, label){
+  if(!list || !list.length){ toast("没有可导出的文献"); return; }
+  const ex = EXPORTERS[format]; if(!ex) return;
+  download(ex.fn(), ex.make(list), ex.mime);
+  toast("已导出 " + list.length + " 篇" + (label || "") + "（" + format.toUpperCase() + "）");
+}
+
+/* ---------------- Rendering: article card ---------------- */
+function tagRow(a){
+  const row = document.createElement("div"); row.className = "tag-row";
+  (a.pubtype || []).slice(0, 4).forEach(t => {
+    const s = document.createElement("span"); s.className = "tag type"; s.textContent = t; row.appendChild(s);
+  });
+  if(a.pmc){ const s = document.createElement("span"); s.className = "tag free"; s.textContent = "免费全文"; row.appendChild(s); }
+  (a.lang || []).forEach(l => {
+    const s = document.createElement("span"); s.className = "tag"; s.textContent = l === "eng" ? "English" : (l === "chi" ? "中文" : l); row.appendChild(s);
+  });
+  return row;
+}
+function buildCard(a, opts){
+  opts = opts || {};
+  const card = document.createElement("article");
+  card.className = "card"; card.dataset.pmid = a.pmid;
+  if(state.selected.has(a.pmid)) card.classList.add("selected");
+
+  const top = document.createElement("div"); top.className = "card-top";
+  if(!opts.favoriteMode){
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.className = "card-check"; cb.checked = state.selected.has(a.pmid);
+    cb.setAttribute("aria-label", "选择这篇文献用于批量操作");
+    cb.addEventListener("change", () => {
+      if(cb.checked){ state.selected.add(a.pmid); card.classList.add("selected"); }
+      else { state.selected.delete(a.pmid); card.classList.remove("selected"); const sa = $("#select-all"); if(sa) sa.checked = false; }
+      updateBatchBar();
+    });
+    top.appendChild(cb);
+  }
+  const main = document.createElement("div"); main.className = "card-main";
+
+  const h = document.createElement("h3"); h.className = "card-title";
+  const titleLink = document.createElement("a");
+  titleLink.href = "https://pubmed.ncbi.nlm.nih.gov/" + a.pmid + "/";
+  titleLink.target = "_blank"; titleLink.rel = "noopener";
+  titleLink.innerHTML = highlightHtml(a.title || "(无标题)", state.highlightTerms);
+  h.appendChild(titleLink);
+
+  const authors = document.createElement("div"); authors.className = "card-authors";
+  authors.textContent = a.authors.length ? (a.authors.slice(0, 8).join(", ") + (a.authors.length > 8 ? ", et al." : "")) : "作者信息缺失";
+
+  const journal = document.createElement("div"); journal.className = "card-journal";
+  const jn = document.createElement("span"); jn.className = "journal-name"; jn.textContent = a.journal || a.journalAbbr || "";
+  journal.appendChild(jn);
+  // Meta line: "Journal · date · volume(issue) pages · PMID"
+  journal.appendChild(document.createTextNode(" · " + [a.pubdate, [a.volume, a.issue ? "(" + a.issue + ")" : ""].join(""), a.pages].filter(Boolean).join(" ") + " · PMID: " + a.pmid));
+
+  main.append(h, authors, journal, tagRow(a));
+
+  // External links
+  const links = document.createElement("div"); links.className = "card-links";
+  articleLinks(a).forEach(l => {
+    const btn = document.createElement("a");
+    btn.className = "btn btn-small"; btn.href = l.href; btn.target = "_blank"; btn.rel = "noopener"; btn.textContent = l.label;
+    if(l.free) btn.style.borderColor = "var(--success)";
+    links.appendChild(btn);
+  });
+  main.appendChild(links);
+
+  // Abstract box (lazy-loaded)
+  const absBox = document.createElement("div"); absBox.className = "abstract-box"; absBox.id = "abs-" + a.pmid + (opts.favoriteMode ? "-fav" : "");
+  main.appendChild(absBox);
+
+  // Actions
+  const actions = document.createElement("div"); actions.className = "card-actions";
+  const absBtn = document.createElement("button");
+  absBtn.className = "btn btn-small"; absBtn.type = "button"; absBtn.textContent = "查看摘要";
+  absBtn.setAttribute("aria-expanded", "false");
+  absBtn.addEventListener("click", () => toggleAbstract(a, absBox, absBtn));
+  actions.appendChild(absBtn);
+
+  const favBtn = document.createElement("button");
+  favBtn.className = "btn btn-small fav-btn"; favBtn.type = "button";
+  const paintFav = () => { const f = isFav(a.pmid); favBtn.textContent = f ? "已收藏" : "收藏"; favBtn.classList.toggle("is-fav", f); };
+  paintFav();
+  favBtn.addEventListener("click", () => { toggleFavorite(a); paintFav(); updateFavBadge(); if(opts.favoriteMode) renderFavorites(); });
+  actions.appendChild(favBtn);
+
+  const citV = document.createElement("button");
+  citV.className = "btn btn-small"; citV.type = "button"; citV.textContent = "复制引文 (Vancouver)";
+  citV.addEventListener("click", () => copyText(citationVancouver(a), "Vancouver 引文已复制"));
+  actions.appendChild(citV);
+  const citA = document.createElement("button");
+  citA.className = "btn btn-small"; citA.type = "button"; citA.textContent = "复制引文 (APA)";
+  citA.addEventListener("click", () => copyText(citationAPA(a), "APA 引文已复制"));
+  actions.appendChild(citA);
+  if(a.doi){
+    const doiBtn = document.createElement("button");
+    doiBtn.className = "btn btn-small"; doiBtn.type = "button"; doiBtn.textContent = "复制 DOI";
+    doiBtn.addEventListener("click", () => copyText(a.doi, "DOI 已复制"));
+    actions.appendChild(doiBtn);
+  }
+  main.appendChild(actions);
+
+  if(opts.favoriteMode){
+    const fav = loadFavorites().find(f => f.pmid === a.pmid) || {};
+    const meta = document.createElement("div"); meta.className = "fav-meta";
+    (fav.tags || []).forEach(t => { const s = document.createElement("span"); s.className = "tag"; s.textContent = "#" + t; meta.appendChild(s); });
+    if(fav.note){ const n = document.createElement("span"); n.className = "tag"; n.textContent = "备注：" + fav.note; meta.appendChild(n); }
+    main.appendChild(meta);
+    // Tag / note editor
+    const edit = document.createElement("div"); edit.className = "fav-edit"; edit.style.display = "none";
+    const lab1 = document.createElement("label"); lab1.textContent = "标签（逗号分隔）";
+    const tagInput = document.createElement("input"); tagInput.type = "text"; tagInput.value = (fav.tags || []).join(", "); tagInput.placeholder = "例如：重点, 待读全文";
+    const lab2 = document.createElement("label"); lab2.textContent = "备注（简短）";
+    const noteInput = document.createElement("textarea"); noteInput.rows = 2; noteInput.value = fav.note || ""; noteInput.placeholder = "为什么收藏这篇…";
+    const saveBtn = document.createElement("button"); saveBtn.className = "btn btn-primary btn-small"; saveBtn.type = "button"; saveBtn.textContent = "保存标签/备注";
+    saveBtn.addEventListener("click", () => { updateFavoriteMeta(a.pmid, tagInput.value, noteInput.value); renderFavorites(); toast("收藏信息已保存"); });
+    edit.append(lab1, tagInput, lab2, noteInput, saveBtn);
+    main.appendChild(edit);
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn btn-ghost btn-small"; editBtn.type = "button"; editBtn.textContent = "编辑标签/备注";
+    editBtn.addEventListener("click", () => { edit.style.display = edit.style.display === "none" ? "grid" : "none"; });
+    actions.appendChild(editBtn);
+    const rmBtn = document.createElement("button");
+    rmBtn.className = "btn btn-small"; rmBtn.type = "button"; rmBtn.textContent = "移除收藏";
+    rmBtn.addEventListener("click", () => { toggleFavorite(a, true); renderFavorites(); updateFavBadge(); });
+    actions.appendChild(rmBtn);
+  }
+
+  top.appendChild(main);
+  card.appendChild(top);
+  return card;
+}
+function renderResults(){
+  const list = $("#results-list"); list.innerHTML = "";
+  state.articles.forEach(a => list.appendChild(buildCard(a)));
+  $("#results-count").textContent = "共 " + state.total.toLocaleString() + " 篇 · 第 " + state.page + " 页";
+  const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
+  const pg = $("#pagination");
+  pg.classList.add("show");
+  $("#page-info").textContent = "第 " + state.page + " / " + totalPages + " 页";
+  $("#page-prev").disabled = state.page <= 1;
+  $("#page-next").disabled = state.page >= totalPages;
+  updateBatchBar();
+}
+function updateBatchBar(){
+  const n = state.selected.size;
+  $("#batch-bar").classList.toggle("show", state.articles.length > 0);
+  $("#selected-count").textContent = "已选 " + n + " 篇";
+  const sa = $("#select-all");
+  if(sa) sa.checked = n > 0 && n === state.articles.length;
+}
+function selectedArticles(){ return state.articles.filter(a => state.selected.has(a.pmid)); }
+
+/* ---------------- Abstract (efetch XML, structured) ---------------- */
+const abstractCache = new Map(); // pmid -> {segments:[{label,text}], mesh:[], keywords:[], plain:''}
+async function loadAbstract(pmid){
+  if(abstractCache.has(pmid)) return abstractCache.get(pmid);
+  const xmlText = await efetchXml(pmid);
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  const segments = [];
+  doc.querySelectorAll("Abstract > AbstractText").forEach(node => {
+    segments.push({ label: node.getAttribute("Label") || "", text: (node.textContent || "").trim() });
+  });
+  const mesh = Array.from(doc.querySelectorAll("MeshHeadingList > MeshHeading > DescriptorName"))
+    .map(n => (n.textContent || "").trim()).filter(Boolean);
+  const keywords = Array.from(doc.querySelectorAll("KeywordList > Keyword"))
+    .map(n => (n.textContent || "").trim()).filter(Boolean);
+  const result = { segments, mesh, keywords, plain: segments.map(s => (s.label ? s.label + ": " : "") + s.text).join("\n") };
+  abstractCache.set(pmid, result);
+  return result;
+}
+async function toggleAbstract(article, box, btn){
+  const open = box.classList.contains("show");
+  if(open){ box.classList.remove("show"); btn.textContent = "查看摘要"; btn.setAttribute("aria-expanded", "false"); return; }
+  btn.disabled = true; btn.textContent = "加载摘要…";
+  try{
+    const abs = await loadAbstract(article.pmid);
+    box.innerHTML = "";
+    // tools: translate toggle
+    const tools = document.createElement("div"); tools.className = "abstract-tools";
+    const trBtn = document.createElement("button"); trBtn.className = "btn btn-small"; trBtn.type = "button"; trBtn.textContent = "翻译摘要为中文";
+    const copyBtn = document.createElement("button"); copyBtn.className = "btn btn-small"; copyBtn.type = "button"; copyBtn.textContent = "复制摘要";
+    copyBtn.addEventListener("click", () => copyText(abs.plain || "", "摘要已复制"));
+    tools.append(trBtn, copyBtn);
+    box.appendChild(tools);
+
+    const enWrap = document.createElement("div");
+    if(!abs.segments.length){
+      const p = document.createElement("p"); p.textContent = "这篇文献在 PubMed 中没有摘要文本。"; enWrap.appendChild(p);
+    } else {
+      abs.segments.forEach(seg => {
+        if(seg.label){ const h = document.createElement("h4"); h.textContent = seg.label; enWrap.appendChild(h); }
+        const p = document.createElement("p"); p.innerHTML = highlightHtml(seg.text, state.highlightTerms); enWrap.appendChild(p);
+      });
+    }
+    if(abs.mesh.length || abs.keywords.length){
+      const m = document.createElement("p"); m.className = "mesh";
+      m.textContent = (abs.mesh.length ? "MeSH：" + abs.mesh.join("; ") : "") +
+                      (abs.mesh.length && abs.keywords.length ? "　" : "") +
+                      (abs.keywords.length ? "关键词：" + abs.keywords.join("; ") : "");
+      enWrap.appendChild(m);
+    }
+    box.appendChild(enWrap);
+
+    const cnWrap = document.createElement("div"); cnWrap.style.display = "none"; box.appendChild(cnWrap);
+    let cnLoaded = false, showingCn = false;
+    trBtn.addEventListener("click", async () => {
+      if(!abs.plain){ toast("无摘要可翻译"); return; }
+      if(!cnLoaded){
+        trBtn.disabled = true; trBtn.textContent = "翻译中…";
+        try{
+          // One batched translation for all segments, joined by a separator
+          // line the translator is told to preserve; if the split does not
+          // line up with the segment count, fall back to per-segment calls.
+          let zhSegments = null;
+          if(abs.segments.length === 1){
+            zhSegments = [await translateText(abs.segments[0].text.slice(0, 4500), "en", "zh-CN", "abstract")];
+          } else if(abs.segments.length > 1){
+            try{
+              const joined = abs.segments.map(seg => seg.text.slice(0, 4500)).join("\n@@@SEG@@@\n");
+              const zhJoined = await translateText(joined, "en", "zh-CN", "abstract");
+              const parts = String(zhJoined || "").split("@@@SEG@@@").map(s => s.trim());
+              if(parts.length === abs.segments.length) zhSegments = parts;
+            }catch(e){ zhSegments = null; }
+            if(!zhSegments){
+              zhSegments = [];
+              for(const seg of abs.segments){
+                zhSegments.push(await translateText(seg.text.slice(0, 4500), "en", "zh-CN", "abstract"));
+              }
+            }
+          }
+          cnWrap.innerHTML = "";
+          abs.segments.forEach((seg, i) => {
+            if(seg.label){ const h = document.createElement("h4"); h.textContent = seg.label; cnWrap.appendChild(h); }
+            const p = document.createElement("p"); p.textContent = zhSegments ? (zhSegments[i] || "") : ""; cnWrap.appendChild(p);
+          });
+          cnLoaded = true;
+        }catch(e){ toast("翻译失败，请稍后重试"); trBtn.disabled = false; trBtn.textContent = "翻译摘要为中文"; return; }
+        trBtn.disabled = false;
+      }
+      showingCn = !showingCn;
+      enWrap.style.display = showingCn ? "none" : "";
+      cnWrap.style.display = showingCn ? "" : "none";
+      trBtn.textContent = showingCn ? "显示英文原文" : "显示中文翻译";
+    });
+
+    box.classList.add("show");
+    btn.textContent = "收起摘要"; btn.setAttribute("aria-expanded", "true");
+  }catch(err){
+    toast("摘要加载失败，请重试");
+    btn.textContent = "查看摘要";
+  }finally{ btn.disabled = false; }
+}
+
+/* ---------------- Favorites logic ---------------- */
+function toggleFavorite(article, forceRemove){
+  let favs = loadFavorites();
+  const exists = favs.some(f => f.pmid === article.pmid);
+  if(exists || forceRemove){
+    favs = favs.filter(f => f.pmid !== article.pmid);
+    if(exists && !forceRemove) toast("已取消收藏");
+  } else {
+    favs.unshift({
+      pmid: article.pmid, title: article.title, authors: article.authors,
+      journal: article.journal, journalAbbr: article.journalAbbr, pubdate: article.pubdate,
+      year: article.year, volume: article.volume, issue: article.issue, pages: article.pages,
+      pubtype: article.pubtype, lang: article.lang, doi: article.doi, pmc: article.pmc,
+      hasAbstract: article.hasAbstract, tags: [], note: "", savedAt: Date.now()
+    });
+    toast("已收藏");
+  }
+  saveFavorites(favs);
+}
+function updateFavoriteMeta(pmid, tagsStr, note){
+  const favs = loadFavorites();
+  const f = favs.find(x => x.pmid === pmid); if(!f) return;
+  f.tags = String(tagsStr || "").split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  f.note = String(note || "").trim();
+  saveFavorites(favs);
+}
+function updateFavBadge(){
+  const n = loadFavorites().length;
+  $("#fav-count-badge").textContent = n ? "(" + n + ")" : "";
+  $("#fav-count-text").textContent = n ? "共 " + n + " 篇" : "";
+}
+
+/* ---------------- Favorites backup: JSON export / import (merge by PMID, add-only) ---------------- */
+const BACKUP_APP = "pubmed-assistant-v2";
+const BACKUP_VERSION = 1;
+function exportFavoritesBackup(){
+  const favs = loadFavorites();
+  if(!favs.length){ toast("还没有收藏，先收藏几篇再导出备份"); return; }
+  const payload = {
+    app: BACKUP_APP, kind: "favorites-backup", version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(), count: favs.length, favorites: favs
+  };
+  download("pubmed-favorites-" + todayStamp() + ".json", JSON.stringify(payload, null, 2), "application/json");
+  toast("备份已导出：" + favs.length + " 篇收藏");
+}
+function sanitizeBackupItem(raw){
+  if(!raw || typeof raw !== "object") return null;
+  const pmid = String(raw.pmid || "").trim();
+  const title = String(raw.title || "").trim();
+  if(!/^\d+$/.test(pmid) || !title) return null;
+  const str = v => String(v == null ? "" : v);
+  const strList = v => Array.isArray(v) ? v.map(x => String(x)).filter(Boolean) : [];
+  return {
+    pmid, title,
+    authors: strList(raw.authors),
+    journal: str(raw.journal), journalAbbr: str(raw.journalAbbr),
+    pubdate: str(raw.pubdate), year: str(raw.year),
+    volume: str(raw.volume), issue: str(raw.issue), pages: str(raw.pages),
+    pubtype: strList(raw.pubtype), lang: strList(raw.lang),
+    doi: str(raw.doi), pmc: str(raw.pmc),
+    hasAbstract: !!raw.hasAbstract,
+    tags: strList(raw.tags), note: str(raw.note),
+    savedAt: Number(raw.savedAt) || Date.now()
+  };
+}
+async function importFavoritesBackup(file){
+  let payload;
+  try{
+    payload = JSON.parse(await file.text());
+  }catch(e){ toast("导入失败：文件不是有效的 JSON 备份"); return; }
+  if(!payload || typeof payload !== "object"){ toast("导入失败：备份格式不对"); return; }
+  if(payload.app && payload.app !== BACKUP_APP){ toast("导入失败：这不是本应用导出的备份文件"); return; }
+  const rawList = Array.isArray(payload) ? payload : payload.favorites;
+  if(!Array.isArray(rawList)){ toast("导入失败：备份里没有收藏数据"); return; }
+  const items = rawList.map(sanitizeBackupItem).filter(Boolean);
+  if(!items.length){ toast("导入失败：备份里没有有效的收藏条目"); return; }
+  const when = payload.exportedAt ? new Date(payload.exportedAt).toLocaleString() : "未知时间";
+  const local = loadFavorites();
+  const ok = window.confirm(
+    "导入收藏备份\n\n导出时间：" + when + "\n备份共 " + items.length + " 篇，本地现有 " + local.length + " 篇。\n\n合并规则：按 PMID 去重，只新增本地没有的；已有的跳过（本地标签/备注为空时用备份补上）；不会删除或覆盖本地收藏。\n\n继续导入？"
+  );
+  if(!ok) return;
+  const byPmid = new Map(local.map(f => [String(f.pmid), f]));
+  let added = 0, skipped = 0, filled = 0;
+  for(const item of items){
+    const existing = byPmid.get(item.pmid);
+    if(!existing){ byPmid.set(item.pmid, item); added++; continue; }
+    let changed = false;
+    if((!existing.tags || !existing.tags.length) && item.tags.length){ existing.tags = item.tags; changed = true; }
+    if(!String(existing.note || "").trim() && item.note){ existing.note = item.note; changed = true; }
+    if(changed) filled++; else skipped++;
+  }
+  const merged = Array.from(byPmid.values()).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+  saveFavorites(merged);
+  updateFavBadge(); renderFavorites();
+  toast("导入完成：新增 " + added + " 篇，补全信息 " + filled + " 篇，跳过重复 " + skipped + " 篇");
+}
+function renderFavorites(){
+  const favs = loadFavorites();
+  favs.forEach(f => state.byPmid.set(f.pmid, f));
+  // tag filter options
+  const tagSel = $("#fav-tag-filter");
+  const currentTag = tagSel.value;
+  const allTags = Array.from(new Set(favs.flatMap(f => f.tags || []))).sort();
+  tagSel.innerHTML = '<option value="">全部标签</option>';
+  allTags.forEach(t => { const o = document.createElement("option"); o.value = t; o.textContent = "#" + t; tagSel.appendChild(o); });
+  tagSel.value = allTags.includes(currentTag) ? currentTag : "";
+
+  const q = $("#fav-search").value.trim().toLowerCase();
+  const filtered = favs.filter(f => {
+    if(tagSel.value && !(f.tags || []).includes(tagSel.value)) return false;
+    if(!q) return true;
+    return [f.title, (f.authors || []).join(" "), f.journal, f.journalAbbr, f.note, (f.tags || []).join(" ")].join(" ").toLowerCase().includes(q);
+  });
+  const list = $("#favorites-list"); list.innerHTML = "";
+  filtered.forEach(f => list.appendChild(buildCard(f, {favoriteMode: true})));
+  $("#fav-empty").style.display = favs.length === 0 ? "block" : "none";
+  if(favs.length && !filtered.length){
+    const box = document.createElement("div"); box.className = "status-box";
+    box.innerHTML = '<div class="status-title">没有符合条件的收藏</div><div>换个关键词或标签试试。</div>';
+    list.appendChild(box);
+  }
+  updateFavBadge();
+}
+
+/* ---------------- History ---------------- */
+function renderHistory(){
+  const wrap = $("#history-list"); wrap.innerHTML = "";
+  const h = loadHistory();
+  if(!h.length){ const s = document.createElement("span"); s.className = "empty-note"; s.textContent = "暂无历史"; wrap.appendChild(s); return; }
+  h.forEach(q => {
+    const b = document.createElement("button");
+    b.className = "history-item"; b.type = "button";
+    const span = document.createElement("span"); span.textContent = q; b.appendChild(span);
+    b.title = q;
+    b.addEventListener("click", () => { $("#search-input").value = q; runSearch(1); });
+    wrap.appendChild(b);
+  });
+}
+
+/* ---------------- View switching ---------------- */
+function switchView(view){
+  const isSearch = view === "search";
+  $("#view-search").hidden = !isSearch;
+  $("#view-favorites").hidden = isSearch;
+  $("#tab-search").setAttribute("aria-selected", String(isSearch));
+  $("#tab-favorites").setAttribute("aria-selected", String(!isSearch));
+  if(!isSearch) renderFavorites();
+}
+
+/* ---------------- Theme / density ---------------- */
+function initTheme(){
+  let saved = "";
+  try{ saved = localStorage.getItem("pubmed-v2-theme") || ""; }catch(e){}
+  const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = saved ? saved === "dark" : prefersDark;
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  $("#theme-btn").textContent = dark ? "浅色模式" : "深色模式";
+}
+function toggleTheme(){
+  const dark = document.documentElement.dataset.theme !== "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  try{ localStorage.setItem("pubmed-v2-theme", dark ? "dark" : "light"); }catch(e){}
+  $("#theme-btn").textContent = dark ? "浅色模式" : "深色模式";
+}
+function initDensity(){
+  let saved = "comfortable";
+  try{ saved = localStorage.getItem("pubmed-v2-density") || "comfortable"; }catch(e){}
+  document.documentElement.dataset.density = saved;
+  $("#density-btn").textContent = "密度：" + (saved === "compact" ? "紧凑" : "舒适");
+}
+function toggleDensity(){
+  const next = document.documentElement.dataset.density === "compact" ? "comfortable" : "compact";
+  document.documentElement.dataset.density = next;
+  try{ localStorage.setItem("pubmed-v2-density", next); }catch(e){}
+  $("#density-btn").textContent = "密度：" + (next === "compact" ? "紧凑" : "舒适");
+}
+
+/* ---------------- Wiring ---------------- */
+function clearFilters(){
+  $$(".f-pubtype").forEach(c => c.checked = false);
+  $("#f-freefulltext").checked = false;
+  const all = $('input[name="f-range"][value="all"]'); if(all) all.checked = true;
+  $("#f-year-from").value = ""; $("#f-year-to").value = "";
+  const l = $('input[name="f-lang"][value=""]'); if(l) l.checked = true;
+  const s = $('input[name="f-species"][value=""]'); if(s) s.checked = true;
+  $("#f-author").value = ""; $("#f-journal").value = "";
+}
+function init(){
+  initTheme(); initDensity(); renderHistory(); updateFavBadge();
+
+  $("#search-form").addEventListener("submit", e => { e.preventDefault(); runSearch(1); });
+  $("#sort-select").addEventListener("change", e => { state.sort = e.target.value; if(state.query) runSearch(1); });
+  $("#page-size").addEventListener("change", e => { state.pageSize = parseInt(e.target.value, 10) || 10; if(state.query) runSearch(1); });
+  $("#page-prev").addEventListener("click", () => { if(state.page > 1) runSearch(state.page - 1); });
+  $("#page-next").addEventListener("click", () => runSearch(state.page + 1));
+
+  $("#filter-apply").addEventListener("click", () => { if($("#search-input").value.trim()) runSearch(1); else toast("先输入关键词，再应用筛选"); });
+  $("#filter-clear").addEventListener("click", () => { clearFilters(); toast("筛选已清空"); });
+  ["f-year-from", "f-year-to"].forEach(id => $("#" + id).addEventListener("input", () => {
+    const r = $('input[name="f-range"][value="custom"]'); if(r) r.checked = true;
+  }));
+  $("#history-clear").addEventListener("click", () => { localStorage.removeItem(HIS_KEY); renderHistory(); });
+
+  // Template chips: append field tag to the last word / whole input
+  $$(".chip[data-template]").forEach(chip => chip.addEventListener("click", () => {
+    const input = $("#search-input");
+    const tag = chip.dataset.template;
+    const v = input.value;
+    if(!v.trim()){ toast("先输入关键词，再点模板加上字段限定"); input.focus(); return; }
+    // Append tag to the last token if not already tagged
+    const m = v.match(/^(.*?)(\S+)$/);
+    if(m && !/\[[^\]]+\]\s*$/.test(v)) input.value = (m[1] ? m[1] : "") + '"' + m[2] + '"' + tag;
+    else if(!/\[[^\]]+\]\s*$/.test(v)) input.value = v + " " + tag;
+    input.focus();
+  }));
+
+  // Batch actions
+  $("#select-all").addEventListener("change", e => {
+    state.articles.forEach(a => e.target.checked ? state.selected.add(a.pmid) : state.selected.delete(a.pmid));
+    renderResults();
+  });
+  $("#batch-fav").addEventListener("click", () => {
+    const sel = selectedArticles();
+    if(!sel.length){ toast("先勾选要收藏的文献"); return; }
+    let added = 0;
+    sel.forEach(a => { if(!isFav(a.pmid)){ toggleFavorite(a); added++; } });
+    toast(added ? "已收藏 " + added + " 篇" : "所选文献都已在收藏中");
+    updateFavBadge(); renderResults();
+  });
+  $$("[data-export-selected]").forEach(b => b.addEventListener("click", () => doExport(selectedArticles(), b.dataset.exportSelected, "（所选）")));
+  $$("[data-export-fav]").forEach(b => b.addEventListener("click", () => doExport(loadFavorites(), b.dataset.exportFav, "（收藏）")));
+  $("#fav-backup-export").addEventListener("click", exportFavoritesBackup);
+  const backupFileInput = $("#fav-backup-file");
+  $("#fav-backup-import").addEventListener("click", () => backupFileInput.click());
+  backupFileInput.addEventListener("change", () => {
+    const f = backupFileInput.files && backupFileInput.files[0];
+    backupFileInput.value = "";
+    if(f) importFavoritesBackup(f);
+  });
+
+  // Tabs / favorites tools / theme / density / mobile filters
+  $$(".tab-btn").forEach(b => b.addEventListener("click", () => switchView(b.dataset.view)));
+  $("#fav-search").addEventListener("input", debounce(renderFavorites, 200));
+  $("#fav-tag-filter").addEventListener("change", renderFavorites);
+  $("#theme-btn").addEventListener("click", toggleTheme);
+  $("#density-btn").addEventListener("click", toggleDensity);
+  $("#filter-toggle-btn").addEventListener("click", () => {
+    const sb = $("#sidebar"); const open = sb.classList.toggle("open");
+    $("#filter-toggle-btn").setAttribute("aria-expanded", String(open));
+    $("#filter-toggle-btn").textContent = open ? "收起筛选条件" : "显示筛选条件";
+  });
+}
+document.addEventListener("DOMContentLoaded", init);
+</script>
 </body>
 </html>

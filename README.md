@@ -2,60 +2,23 @@
 
 一个简单易用的 PubMed 医学文献搜索工具，支持中文关键词搜索、收藏管理和文献摘要查看。
 
-## 功能特性
-
-- 🔍 **快速搜索**：支持中英文关键词搜索 PubMed 文献
-- 🌐 **自动翻译**：输入中文关键词会自动翻译成英文后搜索
-- ⭐ **收藏管理**：收藏感兴趣的文献，支持导出
-- 📄 **摘要查看**：一键查看文献摘要和关键词
-- 🎯 **高级筛选**：按年份、作者、期刊等条件筛选
-- 📥 **导出功能**：将收藏的文献导出为文本文件
-- 📑 **分页浏览**：支持大结果集分页浏览
-
 ## 在线使用
 
-直接访问：[https://bobbyreader.github.io/pubmed-assistant/](https://bobbyreader.github.io/pubmed-assistant/)
+- 正式站：https://okmed.leoyang.dpdns.org （Cloudflare Pages，含服务端加速）
+- 备用：https://pubmed-assistant.pages.dev
+- 预览站：https://pubmed-assistant-v2.pages.dev
 
-## 本地开发
+## 当前架构（v2，2026-10-23）
 
-```bash
-npm install
-npm run dev      # 启动开发服务器 (http://localhost:3000)
-npm run build    # 构建生产版本
-npm run test     # 运行单元测试
-```
+- `index.html`：单文件前端（全部功能：搜索/筛选/高级检索式、结构化摘要与中译、引文复制、BibTeX/RIS/CSV 导出、带标签备注的收藏、收藏 JSON 备份导入导出、深色模式）。无构建步骤，直接部署即运行；通过 `/api/*` 不可用时自动回退为浏览器直连 NCBI。
+- `_worker.js`：Cloudflare Pages 高级模式 Worker，提供同源服务端聚合，解决国内访问慢：
+  - `GET /api/search`：服务端聚合 NCBI esearch+esummary，边缘缓存 5 分钟
+  - `GET /api/abstract`：efetch 摘要 XML，边缘缓存 24 小时
+  - `POST /api/translate`：Agnes AI 翻译（需在 Cloudflare 项目环境变量中设置 `AGNES_API_KEY`，密钥不入库），谷歌翻译兜底
+- `_routes.json`：仅 `/api/*` 走 Worker，其余为静态文件。
 
-## 技术栈
+部署：Cloudflare Pages 项目 `pubmed-assistant`（正式）与 `pubmed-assistant-v2`（预览）。仓库根目录即部署产物，push 到 main 后 Cloudflare 自动部署根目录内容。
 
-- **前端**: TypeScript + Vite
-- **样式**: 纯 CSS（模块化，无框架）
-- **API**: PubMed E-utilities
-- **存储**: LocalStorage 本地持久化
-- **代理**: Cloudflare Worker（可选）
+## 历史说明
 
-## 项目结构
-
-```
-src/
-├── main.ts        # 入口
-├── config.ts      # 配置常量
-├── types.ts       # TypeScript 类型定义
-├── state.ts       # 响应式状态管理
-├── api.ts         # API 调用层
-├── parser.ts      # 数据解析
-├── renderer.ts    # DOM 渲染（textContent，无 XSS 风险）
-├── ui.ts          # 事件绑定与交互
-└── styles/        # CSS 模块
-```
-
-## 配置说明
-
-通过环境变量配置 Worker 代理地址：
-
-```bash
-VITE_WORKER_URL=https://your-worker.workers.dev npm run build
-```
-
-## 许可证
-
-MIT License
+仓库早期的 TypeScript + Vite 模块化版本（`src/`）保留在仓库中备查，其入口 index.html 已被 v2 单文件版取代（旧入口备份见 git 历史）。GitHub Pages 工作流仍会构建并发布 `dist`，内容为同一 v2 页面（静态模式，自动走浏览器直连）。
