@@ -92,8 +92,14 @@ async function handleSearch(request, ctx) {
 /* ---------------- /api/abstract ---------------- */
 async function handleAbstract(request, ctx) {
   const url = new URL(request.url);
-  const pmid = (url.searchParams.get("pmid") || "").trim();
-  if (!/^\d+$/.test(pmid)) return jsonResponse({ error: "pmid must be digits only" }, 400);
+  const idsParam = (url.searchParams.get("ids") || "").trim();
+  let pmid = (url.searchParams.get("pmid") || "").trim();
+  if (idsParam) {
+    if (!/^\d+(,\d+)*$/.test(idsParam)) return jsonResponse({ error: "ids must be comma-separated digits" }, 400);
+    if (idsParam.split(",").length > 25) return jsonResponse({ error: "too many ids (max 25)" }, 400);
+    pmid = idsParam;
+  }
+  if (!/^\d+(,\d+)*$/.test(pmid)) return jsonResponse({ error: "pmid must be digits only" }, 400);
 
   const cache = caches.default;
   const cacheKey = new Request(url.toString(), { method: "GET" });
@@ -124,6 +130,9 @@ async function handleAbstract(request, ctx) {
 function agnesSystemPrompt(mode, sl, tl) {
   if (mode === "query") {
     return "You are a professional medical translator. Translate the user's Chinese medical search query into English suitable for searching PubMed. Use standard medical terminology, generic drug names, and MeSH-style terms where appropriate. Output ONLY the translated query text — no quotes, no explanations, no extra words.";
+  }
+  if (mode === "gist") {
+    return "You are a medical literature summarizer. The user gives you the objective and/or conclusions of a PubMed abstract. Reply with EXACTLY ONE sentence in Simplified Chinese, at most 60 Chinese characters, stating what the study did and its main finding. Preserve key numbers (sample size, percentages) when present. Do not fabricate anything not in the source. Output ONLY that one sentence — no quotes, no preamble, no explanations.";
   }
   if (mode === "abstract") {
     return "You are a professional medical translator. Translate the user's English medical abstract into Simplified Chinese. Preserve section headings, numbers, units, abbreviations, gene symbols and drug names exactly as in the source where appropriate. If the text contains separator lines consisting of @@@SEG@@@, keep those separator lines exactly as-is and in the same positions. Output ONLY the translation — no quotes, no explanations, no extra words.";

@@ -148,6 +148,20 @@ select.filter-input{appearance:auto}
 .abstract-box p{margin:0 0 8px}
 .abstract-box .mesh{font-size:13px;color:var(--text-2)}
 .abstract-box .abstract-tools{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.score-slot{margin-bottom:6px}
+.score-slot:empty{display:none}
+.score-loading{font-size:12.5px;color:var(--text-2)}
+.score-chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);border-left:4px solid var(--text-2);background:var(--bg-subtle);border-radius:999px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:var(--text);font-family:inherit}
+.score-chip b{font-size:13px}
+.score-chip.grade-a{border-left-color:var(--success)}
+.score-chip.grade-b{border-left-color:var(--accent)}
+.score-chip.grade-c{border-left-color:#d97706}
+.score-detail{margin-top:8px;font-size:13px;color:var(--text-2);background:var(--bg-subtle);border-radius:var(--radius-s);padding:10px 12px;display:none;line-height:1.55}
+.score-detail.show{display:block}
+.score-detail ul{margin:4px 0 0 16px;padding:0}
+.score-detail .sd-note{margin-top:6px;font-size:12px}
+.gist-line{margin:10px 0;padding:10px 12px;background:var(--bg-subtle);border-left:3px solid var(--accent);border-radius:var(--radius-s);font-size:14px;line-height:1.6}
+.gist-line strong{color:var(--accent);margin-right:6px}
 .copied-note{font-size:12.5px;color:var(--success);align-self:center}
 
 /* ============ Pagination ============ */
@@ -298,6 +312,7 @@ footer.site{max-width:1440px;margin:0 auto;padding:0 20px 36px;color:var(--text-
           <label for="sort-select">排序</label>
           <select id="sort-select">
             <option value="relevance" selected>相关性</option>
+            <option value="score">本站评分（当前页）</option>
             <option value="pub_date">最新发表</option>
           </select>
           <label for="page-size">每页</label>
@@ -435,7 +450,12 @@ const state = {
   selected: new Set(),  // selected pmids on current page
   queryTranslation: "",
   highlightTerms: [],
-  loading: false
+  loading: false,
+  scores: new Map(),    // pmid -> 本站相关性评分
+  concepts: [],         // scoring concept units derived from the query
+  scoringToken: 0,
+  scoringActive: false,
+  scoreSortActive: false
 };
 
 /* ---------------- Storage: favorites + history ---------------- */
@@ -693,6 +713,7 @@ async function runSearch(page){
   if(!rawInput){ showStatus("info", "请输入关键词", "关键词不能为空。支持中文、英文或 PubMed 检索式。"); return; }
   state.page = page || 1;
   state.loading = true;
+  state.scoringToken++; state.scoringActive = false;
   $("#search-btn").disabled = true;
   showSkeleton(true); showStatus("hide"); $("#results-list").innerHTML = "";
   $("#pagination").classList.remove("show"); $("#batch-bar").classList.remove("show");
@@ -751,8 +772,12 @@ async function runSearch(page){
     if(summary === null) summary = await esummary(found.ids);
     state.articles = found.ids.map(id => normalizeArticle(summary[id])).filter(Boolean);
     state.articles.forEach(a => state.byPmid.set(a.pmid, a));
+    state.scores = new Map();
+    state.scoringActive = true;
+    state.scoreSortActive = ($("#sort-select").value === "score");
     showSkeleton(false);
     renderResults();
+    scoreCurrentPage();
     renderQueryTranslation();
     pushHistory(rawInput);
     window.scrollTo({top: 0, behavior: "smooth"});
@@ -935,6 +960,10 @@ function buildCard(a, opts){
   // Meta line: "Journal · date · volume(issue) pages · PMID"
   journal.appendChild(document.createTextNode(" · " + [a.pubdate, [a.volume, a.issue ? "(" + a.issue + ")" : ""].join(""), a.pages].filter(Boolean).join(" ") + " · PMID: " + a.pmid));
 
+  if(!opts.favoriteMode){
+    const slot = document.createElement("div"); slot.className = "score-slot";
+    main.appendChild(slot);
+  }
   main.append(h, authors, journal, tagRow(a));
 
   // External links
@@ -1010,6 +1039,7 @@ function buildCard(a, opts){
 
   top.appendChild(main);
   card.appendChild(top);
+  if(!opts.favoriteMode) fillScoreSlot(card, a);
   return card;
 }
 function renderResults(){
@@ -1033,21 +1063,268 @@ function updateBatchBar(){
 }
 function selectedArticles(){ return state.articles.filter(a => state.selected.has(a.pmid)); }
 
+/* ---------------- Relevance scoring (本站辅助评分, transparent rubric) ---------------- */
+const SCORE_STOP = new Set(["the","a","an","of","in","on","for","and","or","to","with","by","at","from","as","is","are","was","were","using","use","used","study","studies","analysis","based","among","after","before","during","between"]);
+function buildConcepts(){
+  const units = new Set();
+  (String(state.baseQuery || "").match(/"([^"]+)"/g) || []).forEach(m => {
+    const p = m.replace(/"/g, "").trim().toLowerCase();
+    if(p.length > 2) units.add(p);
+  });
+  termsFromQuery(state.baseQuery).forEach(w => {
+    const lw = w.toLowerCase();
+    if(lw.length >= 3 && !SCORE_STOP.has(lw)) units.add(lw);
+  });
+  // PubMed's own expansion contributes MeSH synonym phrases
+  (String(state.queryTranslation || "").match(/"([^"]+)"\[[^\]]*MeSH[^\]]*\]/gi) || []).forEach(m => {
+    const p = m.replace(/"/g, "").replace(/\[.*$/, "").trim().toLowerCase();
+    if(p.length > 2) units.add(p);
+  });
+  return Array.from(units).slice(0, 18);
+}
+function countOccurrences(hay, needle){
+  if(!needle) return 0;
+  let n = 0, i = 0;
+  while((i = hay.indexOf(needle, i)) !== -1){ n++; i += needle.length; }
+  return n;
+}
+function computeScore(a, abs){
+  const units = state.concepts || [];
+  const title = (a.title || "").toLowerCase();
+  const absText = abs ? (abs.plain || "").toLowerCase() : "";
+  const meshText = abs ? (abs.mesh || []).join(" ").toLowerCase() : "";
+  const full = title + "\n" + absText;
+  const reasons = [], negatives = [];
+  const hitIn = text => units.filter(u => text.includes(u));
+  // --- 主题匹配 50: 标题 18 + 摘要 17 + MeSH 10 + 要素覆盖 5 ---
+  let titleScore = 0;
+  if(units.length){
+    const th = hitIn(title);
+    const cov = th.length / units.length;
+    titleScore = cov * 14;
+    if(units.some(u => u.includes(" ") && title.includes(u))) titleScore += 4;
+    if(cov >= 0.99) titleScore += 2;
+    titleScore = Math.min(18, Math.round(titleScore));
+    if(cov >= 0.6) reasons.push("标题命中核心概念（" + th.length + "/" + units.length + "）");
+    if(cov === 0) negatives.push("标题未命中核心概念");
+  }
+  let absScore = 0;
+  if(abs && abs.segments && abs.segments.length){
+    const ah = hitIn(absText);
+    const cov = units.length ? ah.length / units.length : 0;
+    let occ = 0; units.forEach(u => { occ += countOccurrences(absText, u); });
+    absScore = cov * 10 + Math.min(4, Math.floor(occ / 4));
+    const concl = abs.segments.filter(s => /conclusion/i.test(s.label || "")).map(s => s.text.toLowerCase()).join(" ");
+    const obj = abs.segments[0].text.toLowerCase();
+    if(concl && units.some(u => concl.includes(u))) absScore += 2;
+    if(obj && units.some(u => obj.includes(u))) absScore += 1;
+    absScore = Math.min(17, Math.round(absScore));
+    if(cov >= 0.6) reasons.push("摘要覆盖多数核心概念");
+  } else {
+    negatives.push("无摘要正文，相关性评估受限");
+  }
+  let meshScore = 0;
+  if(abs && abs.mesh && abs.mesh.length && units.length){
+    const mh = hitIn(meshText);
+    meshScore = Math.round(mh.length / units.length * 10);
+    if(units.length && mh.length / units.length >= 0.4) reasons.push("MeSH 主题词精确命中");
+  }
+  const picoCats = [
+    /(patient|adult|child|women|men|elderly|participant|subject|infant|adolescent|people)/,
+    /(treat|therap|drug|dose|administer|intervention|vaccine|surgery|inhibitor|antibody|exposure|program)/,
+    /(mortality|survival|efficacy|safety|outcome|endpoint|response|remission|recurrence|quality of life|incidence|prevalence|risk|pain)/
+  ];
+  const picoHits = picoCats.filter(re => re.test(full)).length;
+  const picoScore = Math.round(picoHits / 3 * 5);
+  const topic = Math.min(50, titleScore + absScore + meshScore + picoScore);
+  // --- 证据适配 25 ---
+  const pt = (a.pubtype || []).join(" ").toLowerCase();
+  const head = title + " " + absText.slice(0, 600);
+  let evidence = 12, evLabel = "";
+  if(/meta-analysis/.test(pt) || /systematic review/.test(head)){ evidence = 25; evLabel = "系统综述 / Meta 分析"; }
+  else if(/practice guideline/.test(pt) || /\bguideline\b/.test(title)){ evidence = 24; evLabel = "临床指南"; }
+  else if(/randomized controlled trial/.test(pt) || /randomi[sz]ed/.test(title)){ evidence = 22; evLabel = "随机对照试验"; }
+  else if(/clinical trial/.test(pt)){ evidence = 20; evLabel = "临床试验"; }
+  else if(/observational study/.test(pt) || /\bcohort\b/.test(head)){ evidence = 18; evLabel = "队列 / 观察性研究"; }
+  else if(/diagnostic accuracy|sensitivity and specificity/.test(head)){ evidence = 18; evLabel = "诊断准确性研究"; }
+  else if(/case-control/.test(head)){ evidence = 14; evLabel = "病例对照研究"; }
+  else if(/cross-sectional|cross sectional/.test(head)){ evidence = 13; evLabel = "横断面研究"; }
+  else if(/case reports/.test(pt)){ evidence = 8; evLabel = "病例报告"; }
+  else if(/(mice|mouse model|rat model|cell line|in vitro)/.test(head) && !picoCats[0].test(full)){ evidence = 5; evLabel = "动物 / 体外研究"; }
+  if(evLabel) reasons.push("研究类型：" + evLabel);
+  if(evLabel && evidence <= 8) negatives.push(evLabel + "，证据强度有限");
+  // --- 时效 15 ---
+  let recency = 6;
+  const yr = parseInt(a.year, 10);
+  if(yr){
+    const age = new Date().getFullYear() - yr;
+    recency = age <= 2 ? 15 : age <= 5 ? 12 : age <= 10 ? 8 : 4;
+    if(age <= 2) reasons.push("近 2 年发表");
+    if(age > 10) negatives.push("发表时间较早（" + yr + " 年）");
+  }
+  // --- 可用性 10 ---
+  let usability = 0;
+  if(a.pmc){ usability += 4; reasons.push("有 PMC 免费全文"); }
+  if(a.hasAbstract) usability += 2;
+  if(a.doi) usability += 2;
+  if(a.volume || a.pages) usability += 2;
+  const total = Math.max(0, Math.min(100, topic + evidence + recency + usability));
+  const grade = total >= 85 ? "A" : total >= 70 ? "B" : total >= 55 ? "C" : "D";
+  const gradeLabel = {A: "高相关", B: "较相关", C: "可选", D: "低相关"}[grade];
+  return { total, grade, gradeLabel,
+           parts: {topic, evidence, recency, usability},
+           detail: {titleScore, absScore, meshScore, picoScore},
+           reasons, negatives };
+}
+function scoreDetailHtml(s){
+  const d = s.detail;
+  let h = "<div>主题匹配 <b>" + s.parts.topic + "</b>/50（标题 " + d.titleScore + " · 摘要 " + d.absScore + " · MeSH " + d.meshScore + " · 要素 " + d.picoScore + "）</div>";
+  h += "<div>证据适配 <b>" + s.parts.evidence + "</b>/25 · 时效 <b>" + s.parts.recency + "</b>/15 · 可用性 <b>" + s.parts.usability + "</b>/10</div>";
+  if(s.reasons.length) h += "<ul>" + s.reasons.map(r => "<li>＋ " + escapeHtml(r) + "</li>").join("") + "</ul>";
+  if(s.negatives.length) h += "<ul>" + s.negatives.map(r => "<li>－ " + escapeHtml(r) + "</li>").join("") + "</ul>";
+  h += '<div class="sd-note">本站辅助评分，用于快速筛选，不等同于文献质量评价。</div>';
+  return h;
+}
+function fillScoreSlot(card, a){
+  const slot = card.querySelector(".score-slot");
+  if(!slot) return;
+  slot.innerHTML = "";
+  const s = state.scores.get(a.pmid);
+  if(!s){
+    if(state.scoringActive){
+      const sp = document.createElement("span");
+      sp.className = "score-loading"; sp.textContent = "相关性评分中…";
+      slot.appendChild(sp);
+    }
+    return;
+  }
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = "score-chip grade-" + s.grade.toLowerCase();
+  chip.innerHTML = "相关性 <b>" + s.total + "</b> 分 · " + s.grade + " " + s.gradeLabel;
+  const detail = document.createElement("div");
+  detail.className = "score-detail"; detail.innerHTML = scoreDetailHtml(s);
+  chip.addEventListener("click", () => detail.classList.toggle("show"));
+  slot.append(chip, detail);
+}
+async function scoreCurrentPage(){
+  const token = ++state.scoringToken;
+  state.concepts = buildConcepts();
+  const pmids = state.articles.map(a => a.pmid);
+  if(!pmids.length){ state.scoringActive = false; return; }
+  try{ await loadAbstractsBatch(pmids); }catch(e){ /* degrade to metadata-only scores */ }
+  if(token !== state.scoringToken) return;
+  state.scoringActive = false;
+  state.articles.forEach(a => {
+    state.scores.set(a.pmid, computeScore(a, abstractCache.get(a.pmid)));
+  });
+  document.querySelectorAll("#results-list .card").forEach(card => {
+    const a = state.byPmid.get(card.dataset.pmid);
+    if(a) fillScoreSlot(card, a);
+  });
+  if(state.scoreSortActive) applyScoreSort();
+}
+function applyScoreSort(){
+  state.articles.sort((x, y) => {
+    const sx = state.scores.has(x.pmid) ? state.scores.get(x.pmid).total : -1;
+    const sy = state.scores.has(y.pmid) ? state.scores.get(y.pmid).total : -1;
+    return sy - sx;
+  });
+  renderResults();
+}
+
+/* ---------------- Chinese one-line gist (中文速览) ---------------- */
+const GIST_KEY = "pubmed-v2-gist";
+const gistMem = new Map();
+function gistCacheGet(pmid){
+  try{ const c = JSON.parse(localStorage.getItem(GIST_KEY) || "{}"); return typeof c[pmid] === "string" ? c[pmid] : null; }
+  catch(e){ return null; }
+}
+function gistCacheSet(pmid, text){
+  try{
+    const c = JSON.parse(localStorage.getItem(GIST_KEY) || "{}");
+    c[pmid] = text;
+    const ks = Object.keys(c);
+    if(ks.length > 200) ks.slice(0, ks.length - 200).forEach(k => delete c[k]);
+    localStorage.setItem(GIST_KEY, JSON.stringify(c));
+  }catch(e){ /* best effort */ }
+}
+async function loadGist(article, abs){
+  if(gistMem.has(article.pmid)) return gistMem.get(article.pmid);
+  const cached = gistCacheGet(article.pmid);
+  if(cached){ gistMem.set(article.pmid, cached); return cached; }
+  let out = "";
+  if(abs && abs.segments && abs.segments.length){
+    const obj = abs.segments.find(s => /objective|background|purpose|aim/i.test(s.label || "")) || abs.segments[0];
+    const concl = abs.segments.find(s => /conclusion/i.test(s.label || ""));
+    const src = [obj && obj.text, concl && concl.text].filter(Boolean).join(" ").slice(0, 2500) || abs.plain.slice(0, 2500);
+    let zh = await translateText(src, "en", "zh-CN", "gist");
+    zh = String(zh || "").replace(/\s+/g, " ").trim();
+    const sentences = zh.split(/(?<=。)/).filter(Boolean);
+    out = sentences.length ? sentences[0] : zh;
+    if(out.length < 25 && sentences.length > 1) out += sentences[1];
+    if(out.length > 95) out = out.slice(0, 95) + "…";
+  } else {
+    const zh = await translateText(article.title, "en", "zh-CN", "generic");
+    out = "（仅标题翻译）" + String(zh || "").trim();
+  }
+  if(out){ gistMem.set(article.pmid, out); gistCacheSet(article.pmid, out); }
+  return out;
+}
+
 /* ---------------- Abstract (efetch XML, structured) ---------------- */
 const abstractCache = new Map(); // pmid -> {segments:[{label,text}], mesh:[], keywords:[], plain:''}
+function parseAbstractEl(el, pmidFallback){
+  const segments = [];
+  el.querySelectorAll("Abstract > AbstractText").forEach(node => {
+    segments.push({ label: node.getAttribute("Label") || "", text: (node.textContent || "").trim() });
+  });
+  const mesh = Array.from(el.querySelectorAll("MeshHeadingList DescriptorName"))
+    .map(n => (n.textContent || "").trim()).filter(Boolean);
+  const keywords = Array.from(el.querySelectorAll("KeywordList Keyword"))
+    .map(n => (n.textContent || "").trim()).filter(Boolean);
+  const pmidNode = el.querySelector("PMID");
+  const pmid = pmidNode ? (pmidNode.textContent || "").trim() : (pmidFallback || "");
+  return { pmid, data: { segments, mesh, keywords, plain: segments.map(s => (s.label ? s.label + ": " : "") + s.text).join("\n") } };
+}
+function parseAbstractXml(xmlText, wanted){
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  const out = new Map();
+  const articles = doc.querySelectorAll("PubmedArticle");
+  if(articles.length){
+    articles.forEach(el => { const r = parseAbstractEl(el); if(r.pmid) out.set(r.pmid, r.data); });
+  } else if(wanted && wanted.length === 1){
+    out.set(wanted[0], parseAbstractEl(doc, wanted[0]).data);
+  }
+  return out;
+}
+async function loadAbstractsBatch(pmids){
+  const missing = pmids.filter(p => !abstractCache.has(p));
+  if(!missing.length) return;
+  const got = new Map();
+  try{
+    const res = await fetchWithTimeout("/api/abstract?ids=" + encodeURIComponent(missing.join(",")), {}, 25000);
+    if(!res.ok) throw new Error("api abstracts HTTP " + res.status);
+    parseAbstractXml(await res.text(), missing).forEach((v, k) => got.set(k, v));
+  }catch(e){ /* direct batch below */ }
+  const still = missing.filter(p => !got.has(p));
+  if(still.length){
+    try{
+      const res = await eutils("efetch.fcgi", {db:"pubmed", id: still.join(","), retmode:"xml"});
+      parseAbstractXml(await res.text(), still).forEach((v, k) => got.set(k, v));
+    }catch(e){ /* per-article fallback below */ }
+  }
+  got.forEach((v, k) => abstractCache.set(k, v));
+  for(const p of missing.filter(p => !abstractCache.has(p))){
+    try{ await loadAbstract(p); }
+    catch(e){ abstractCache.set(p, {segments:[], mesh:[], keywords:[], plain:""}); }
+  }
+}
 async function loadAbstract(pmid){
   if(abstractCache.has(pmid)) return abstractCache.get(pmid);
   const xmlText = await efetchXml(pmid);
-  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
-  const segments = [];
-  doc.querySelectorAll("Abstract > AbstractText").forEach(node => {
-    segments.push({ label: node.getAttribute("Label") || "", text: (node.textContent || "").trim() });
-  });
-  const mesh = Array.from(doc.querySelectorAll("MeshHeadingList > MeshHeading > DescriptorName"))
-    .map(n => (n.textContent || "").trim()).filter(Boolean);
-  const keywords = Array.from(doc.querySelectorAll("KeywordList > Keyword"))
-    .map(n => (n.textContent || "").trim()).filter(Boolean);
-  const result = { segments, mesh, keywords, plain: segments.map(s => (s.label ? s.label + ": " : "") + s.text).join("\n") };
+  const got = parseAbstractXml(xmlText, [pmid]);
+  const result = got.get(pmid) || {segments:[], mesh:[], keywords:[], plain:""};
   abstractCache.set(pmid, result);
   return result;
 }
@@ -1065,6 +1342,16 @@ async function toggleAbstract(article, box, btn){
     copyBtn.addEventListener("click", () => copyText(abs.plain || "", "摘要已复制"));
     tools.append(trBtn, copyBtn);
     box.appendChild(tools);
+
+    // Chinese one-line gist at the top of the abstract
+    const gist = document.createElement("div"); gist.className = "gist-line";
+    const gLabel = document.createElement("strong"); gLabel.textContent = "中文速览";
+    const gText = document.createElement("span"); gText.textContent = "生成中…";
+    gist.append(gLabel, gText);
+    box.appendChild(gist);
+    loadGist(article, abs)
+      .then(t => { gText.textContent = t || "暂不可用"; })
+      .catch(() => { gText.textContent = "暂不可用"; });
 
     const enWrap = document.createElement("div");
     if(!abs.segments.length){
@@ -1326,7 +1613,19 @@ function init(){
   initTheme(); initDensity(); renderHistory(); updateFavBadge();
 
   $("#search-form").addEventListener("submit", e => { e.preventDefault(); runSearch(1); });
-  $("#sort-select").addEventListener("change", e => { state.sort = e.target.value; if(state.query) runSearch(1); });
+  $("#sort-select").addEventListener("change", e => {
+    const v = e.target.value;
+    if(v === "score"){
+      state.scoreSortActive = true;
+      if(!state.articles.length) return;
+      const all = state.articles.every(a => state.scores.has(a.pmid));
+      if(all) applyScoreSort(); else scoreCurrentPage();
+      return;
+    }
+    state.scoreSortActive = false;
+    state.sort = v;
+    if(state.query) runSearch(1);
+  });
   $("#page-size").addEventListener("change", e => { state.pageSize = parseInt(e.target.value, 10) || 10; if(state.query) runSearch(1); });
   $("#page-prev").addEventListener("click", () => { if(state.page > 1) runSearch(state.page - 1); });
   $("#page-next").addEventListener("click", () => runSearch(state.page + 1));
